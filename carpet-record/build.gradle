@@ -99,7 +99,7 @@ dependencies {
     testImplementation "org.apache.parquet:parquet-avro:${parquetVersion}"
     testImplementation 'org.slf4j:slf4j-simple:1.7.36'
     testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
-    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher:${junitPlatformLauncherVersion}"
 }
 
 configurations.implementation {
