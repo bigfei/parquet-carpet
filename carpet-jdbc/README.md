@@ -1,6 +1,6 @@
-# Carpet Samples
+# Carpet JDBC
 
-This module contains example code and usage patterns for the Carpet Parquet library.
+This module provides JDBC-to-Parquet export capabilities for the Carpet library, enabling seamless data export from any JDBC-compliant database to Parquet format without requiring predefined Java record classes.
 
 ## Dynamic JDBC to Parquet Export
 
@@ -142,24 +142,24 @@ The exporter automatically maps SQL types to Parquet types:
 
 ```bash
 # Run the example class
-./gradlew :carpet-samples:test --tests DynamicJdbcExportExample
+./gradlew :carpet-jdbc:test --tests DynamicJdbcExportExample
 
 # Run only DuckDB tests
-./gradlew :carpet-samples:test --tests DynamicJdbcExporterTest
+./gradlew :carpet-jdbc:test --tests DynamicJdbcExporterTest
 ```
 
 ### SQLite Example (No setup required)
 
 ```bash
 # Run SQLite integration tests
-./gradlew :carpet-samples:test --tests DynamicJdbcExporterSQLiteTest
+./gradlew :carpet-jdbc:test --tests DynamicJdbcExporterSQLiteTest
 ```
 
 ### PostgreSQL Integration Tests (Requires Docker)
 
 ```bash
 # Enable and run PostgreSQL integration tests
-./gradlew :carpet-samples:test --tests DynamicJdbcExporterPostgreSQLTest
+./gradlew :carpet-jdbc:test --tests DynamicJdbcExporterPostgreSQLTest
 ```
 
 ### MySQL Support
@@ -205,7 +205,7 @@ try (Connection mysqlConnection = DriverManager.getConnection(url, props)) {
 ### MySQL Integration Tests (Requires Docker)
 ```bash
 # Enable and run MySQL integration tests
-./gradlew :carpet-samples:test --tests DynamicJdbcExporterMySQLTest
+./gradlew :carpet-jdbc:test --tests DynamicJdbcExporterMySQLTest
 ```
 
 ### SQLite Support
@@ -274,7 +274,7 @@ try (Connection sqliteConnection = DriverManager.getConnection(sqliteUrl)) {
 ### SQLite Integration Tests
 ```bash
 # Run SQLite integration tests (no setup required)
-./gradlew :carpet-samples:test --tests DynamicJdbcExporterSQLiteTest
+./gradlew :carpet-jdbc:test --tests DynamicJdbcExporterSQLiteTest
 ```
 
 ## Dependencies
@@ -349,3 +349,306 @@ try (ResultSet resultSet = statement.executeQuery(sql)) {
 ```
 
 This helps you understand the structure of your data before exporting.
+
+## Adding Support for New Databases
+
+The JDBC exporter is designed to be extensible. To add support for a new database, follow these patterns:
+
+### 1. Database-Specific Type Mapping
+
+Create a type mapper for your database by extending or customizing the type conversion logic:
+
+```java
+// Example: Oracle-specific type mapper
+public class OracleTypeMapper {
+    
+    public static FieldType mapOracleType(int sqlType, String typeName, 
+                                          int precision, int scale) {
+        switch (sqlType) {
+            case Types.NUMERIC:
+                // Oracle NUMBER type special handling
+                if (scale == 0 && precision <= 10) {
+                    return FieldTypes.INT;
+                } else if (scale == 0 && precision <= 19) {
+                    return FieldTypes.LONG;
+                } else {
+                    return FieldTypes.decimal(precision, scale);
+                }
+            
+            case Types.TIMESTAMP:
+                // Oracle TIMESTAMP WITH TIME ZONE
+                if (typeName.contains("WITH TIME ZONE")) {
+                    return FieldTypes.INSTANT;
+                }
+                return FieldTypes.LOCAL_DATE_TIME;
+                
+            case Types.OTHER:
+                // Oracle-specific types (XMLTYPE, JSON, etc.)
+                if ("XMLTYPE".equals(typeName)) {
+                    return FieldTypes.STRING;
+                }
+                if ("JSON".equals(typeName)) {
+                    return FieldTypes.STRING;
+                }
+                break;
+                
+            default:
+                return null; // Fallback to default handling
+        }
+    }
+}
+```
+
+### 2. Value Conversion Strategy
+
+Implement custom value converters for database-specific types:
+
+```java
+// Example: Converting Oracle CLOB to String
+public class OracleValueConverter {
+    
+    public static Object convertValue(ResultSet rs, int columnIndex, 
+                                      int sqlType, String typeName) 
+            throws SQLException {
+        
+        // Handle CLOB
+        if (sqlType == Types.CLOB) {
+            Clob clob = rs.getClob(columnIndex);
+            if (clob != null) {
+                try (Reader reader = clob.getCharacterStream()) {
+                    return readAll(reader);
+                }
+            }
+            return null;
+        }
+        
+        // Handle BLOB as byte array
+        if (sqlType == Types.BLOB) {
+            Blob blob = rs.getBlob(columnIndex);
+            if (blob != null) {
+                return blob.getBytes(1, (int) blob.length());
+            }
+            return null;
+        }
+        
+        // Handle Oracle spatial types (SDO_GEOMETRY)
+        if ("SDO_GEOMETRY".equals(typeName)) {
+            Object obj = rs.getObject(columnIndex);
+            // Convert to WKT or GeoJSON string
+            return convertSdoGeometryToWkt(obj);
+        }
+        
+        return null; // Use default handling
+    }
+}
+```
+
+### 3. Database-Specific Exporter
+
+Create a specialized exporter that incorporates your custom mappings:
+
+```java
+public class OracleJdbcExporter {
+    
+    public static void exportToParquet(
+            Connection connection, 
+            String sqlQuery,
+            File outputFile) throws SQLException, IOException {
+        
+        try (PreparedStatement statement = connection.prepareStatement(sqlQuery);
+             ResultSet resultSet = statement.executeQuery()) {
+            
+            // Create model factory with Oracle-specific mappings
+            WriteModelFactory<Map> modelFactory = 
+                createOracleModelFactory(resultSet.getMetaData());
+            
+            try (CarpetWriter<Map> writer = new CarpetWriter.Builder<>(
+                    new FileSystemOutputFile(outputFile),
+                    Map.class)
+                    .withWriteRecordModel(modelFactory)
+                    .build()) {
+                
+                // Stream with Oracle-specific value conversion
+                Stream<Map> records = convertOracleResultSet(resultSet);
+                writer.write(records);
+            }
+        }
+    }
+    
+    private static WriteModelFactory<Map> createOracleModelFactory(
+            ResultSetMetaData metaData) throws SQLException {
+        
+        WriteRecordModelType<Map> model = 
+            WriteRecordModelType.writeRecordModel(Map.class);
+        
+        for (int i = 1; i <= metaData.getColumnCount(); i++) {
+            String columnName = metaData.getColumnLabel(i);
+            int sqlType = metaData.getColumnType(i);
+            String typeName = metaData.getColumnTypeName(i);
+            int precision = metaData.getPrecision(i);
+            int scale = metaData.getScale(i);
+            
+            // Try Oracle-specific mapping first
+            FieldType fieldType = OracleTypeMapper.mapOracleType(
+                sqlType, typeName, precision, scale);
+            
+            // Fallback to standard JDBC mapping
+            if (fieldType == null) {
+                fieldType = standardJdbcTypeMapping(sqlType, precision, scale);
+            }
+            
+            final int columnIndex = i;
+            model.withField(columnName, fieldType, 
+                map -> map.get(columnName));
+        }
+        
+        return model::build;
+    }
+}
+```
+
+### 4. Testing Pattern
+
+Create comprehensive tests for your database adapter:
+
+```java
+@Testcontainers
+class OracleJdbcExporterTest {
+    
+    @Container
+    private static final OracleContainer oracle = 
+        new OracleContainer("gvenzl/oracle-xe:21-slim")
+            .withDatabaseName("testdb")
+            .withUsername("test")
+            .withPassword("test");
+    
+    @Test
+    void exportOracleNumberTypes() throws Exception {
+        try (Connection conn = oracle.createConnection("")) {
+            // Setup schema
+            conn.createStatement().execute(
+                "CREATE TABLE numbers_test (" +
+                "  small_int NUMBER(5,0), " +
+                "  big_int NUMBER(15,0), " +
+                "  decimal_val NUMBER(10,2), " +
+                "  float_val NUMBER(5,2)" +
+                ")"
+            );
+            
+            // Insert test data
+            conn.createStatement().execute(
+                "INSERT INTO numbers_test VALUES (123, 123456789, 123.45, 12.34)"
+            );
+            
+            // Export
+            File output = File.createTempFile("oracle", ".parquet");
+            OracleJdbcExporter.exportToParquet(
+                conn, 
+                "SELECT * FROM numbers_test", 
+                output
+            );
+            
+            // Verify
+            try (CarpetReader<Map> reader = 
+                    new CarpetReader<>(output, Map.class)) {
+                Map record = reader.stream().findFirst().orElseThrow();
+                assertEquals(123, record.get("small_int"));
+                assertEquals(123456789L, record.get("big_int"));
+                // ... more assertions
+            }
+        }
+    }
+    
+    @Test
+    void exportOracleLobTypes() throws Exception {
+        // Test CLOB and BLOB handling
+    }
+    
+    @Test
+    void exportOracleDateTypes() throws Exception {
+        // Test TIMESTAMP, DATE, TIMESTAMP WITH TIME ZONE
+    }
+}
+```
+
+### 5. Integration Checklist
+
+When adding a new database adapter, ensure you handle:
+
+- ✅ **Numeric Types**: INTEGER, BIGINT, DECIMAL with proper precision/scale
+- ✅ **String Types**: VARCHAR, TEXT, CLOB with character encoding
+- ✅ **Date/Time Types**: DATE, TIMESTAMP, TIME with timezone awareness
+- ✅ **Binary Types**: BLOB, VARBINARY, BYTEA with size limits
+- ✅ **Boolean Types**: BOOLEAN, BIT with database-specific representations
+- ✅ **Special Types**: JSON, XML, UUID, ENUM with serialization strategy
+- ✅ **Array Types**: Array columns with element type handling
+- ✅ **NULL Handling**: Nullable vs non-nullable columns
+- ✅ **Character Encoding**: UTF-8, UTF-16, database-specific encodings
+- ✅ **Connection Properties**: Fetch size, batch size, timeout settings
+
+### 6. Common Patterns
+
+**Pattern 1: Type Detection**
+```java
+// Always check type name in addition to SQL type code
+if (sqlType == Types.OTHER) {
+    switch (typeName.toUpperCase()) {
+        case "JSON": return FieldTypes.STRING;
+        case "UUID": return FieldTypes.STRING;
+        case "GEOMETRY": return FieldTypes.STRING;
+    }
+}
+```
+
+**Pattern 2: Safe Value Extraction**
+```java
+// Always handle potential nulls
+Object value = rs.getObject(columnIndex);
+if (rs.wasNull()) {
+    return null;
+}
+return convertValue(value, targetType);
+```
+
+**Pattern 3: Fallback Strategy**
+```java
+// Provide graceful degradation
+try {
+    return mapDatabaseSpecificType(sqlType, typeName);
+} catch (Exception e) {
+    logger.warn("Using String fallback for type: " + typeName);
+    return FieldTypes.STRING;
+}
+```
+
+### 7. Performance Optimization
+
+For large datasets, consider:
+
+```java
+// Streaming with cursor
+statement.setFetchSize(1000); // Database-specific optimal value
+statement.setFetchDirection(ResultSet.FETCH_FORWARD);
+
+// Connection tuning
+properties.setProperty("defaultRowPrefetch", "1000");
+properties.setProperty("useCursors", "true");
+
+// Parallel processing for multi-table exports
+ExecutorService executor = Executors.newFixedThreadPool(4);
+tables.parallelStream().forEach(table -> 
+    exportTable(connection, table, outputDir)
+);
+```
+
+### Contributing Database Adapters
+
+To contribute a new database adapter:
+
+1. Add JDBC driver dependency to `build.gradle`
+2. Create type mapper in `com.jerolba.carpet.jdbc.adapters` package
+3. Add comprehensive test suite using Testcontainers
+4. Update this README with database-specific documentation
+5. Submit PR with examples and integration tests
+
+See existing adapters (PostgreSQL, MySQL, SQLite) for reference implementations.
