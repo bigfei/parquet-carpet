@@ -40,7 +40,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * Integration tests for DynamicJdbcExporter using PostgreSQL.
+ * Unit tests for DynamicJdbcExporter using PostgreSQL.
  * These tests require Docker and PostgreSQL container.
  */
 @Testcontainers
