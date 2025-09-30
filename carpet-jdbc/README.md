@@ -361,8 +361,8 @@ Create a type mapper for your database by extending or customizing the type conv
 ```java
 // Example: Oracle-specific type mapper
 public class OracleTypeMapper {
-    
-    public static FieldType mapOracleType(int sqlType, String typeName, 
+
+    public static FieldType mapOracleType(int sqlType, String typeName,
                                           int precision, int scale) {
         switch (sqlType) {
             case Types.NUMERIC:
@@ -374,14 +374,14 @@ public class OracleTypeMapper {
                 } else {
                     return FieldTypes.decimal(precision, scale);
                 }
-            
+
             case Types.TIMESTAMP:
                 // Oracle TIMESTAMP WITH TIME ZONE
                 if (typeName.contains("WITH TIME ZONE")) {
                     return FieldTypes.INSTANT;
                 }
                 return FieldTypes.LOCAL_DATE_TIME;
-                
+
             case Types.OTHER:
                 // Oracle-specific types (XMLTYPE, JSON, etc.)
                 if ("XMLTYPE".equals(typeName)) {
@@ -391,7 +391,7 @@ public class OracleTypeMapper {
                     return FieldTypes.STRING;
                 }
                 break;
-                
+
             default:
                 return null; // Fallback to default handling
         }
@@ -406,11 +406,11 @@ Implement custom value converters for database-specific types:
 ```java
 // Example: Converting Oracle CLOB to String
 public class OracleValueConverter {
-    
-    public static Object convertValue(ResultSet rs, int columnIndex, 
-                                      int sqlType, String typeName) 
+
+    public static Object convertValue(ResultSet rs, int columnIndex,
+                                      int sqlType, String typeName)
             throws SQLException {
-        
+
         // Handle CLOB
         if (sqlType == Types.CLOB) {
             Clob clob = rs.getClob(columnIndex);
@@ -421,7 +421,7 @@ public class OracleValueConverter {
             }
             return null;
         }
-        
+
         // Handle BLOB as byte array
         if (sqlType == Types.BLOB) {
             Blob blob = rs.getBlob(columnIndex);
@@ -430,14 +430,14 @@ public class OracleValueConverter {
             }
             return null;
         }
-        
+
         // Handle Oracle spatial types (SDO_GEOMETRY)
         if ("SDO_GEOMETRY".equals(typeName)) {
             Object obj = rs.getObject(columnIndex);
             // Convert to WKT or GeoJSON string
             return convertSdoGeometryToWkt(obj);
         }
-        
+
         return null; // Use default handling
     }
 }
@@ -449,59 +449,59 @@ Create a specialized exporter that incorporates your custom mappings:
 
 ```java
 public class OracleJdbcExporter {
-    
+
     public static void exportToParquet(
-            Connection connection, 
+            Connection connection,
             String sqlQuery,
             File outputFile) throws SQLException, IOException {
-        
+
         try (PreparedStatement statement = connection.prepareStatement(sqlQuery);
              ResultSet resultSet = statement.executeQuery()) {
-            
+
             // Create model factory with Oracle-specific mappings
-            WriteModelFactory<Map> modelFactory = 
+            WriteModelFactory<Map> modelFactory =
                 createOracleModelFactory(resultSet.getMetaData());
-            
+
             try (CarpetWriter<Map> writer = new CarpetWriter.Builder<>(
                     new FileSystemOutputFile(outputFile),
                     Map.class)
                     .withWriteRecordModel(modelFactory)
                     .build()) {
-                
+
                 // Stream with Oracle-specific value conversion
                 Stream<Map> records = convertOracleResultSet(resultSet);
                 writer.write(records);
             }
         }
     }
-    
+
     private static WriteModelFactory<Map> createOracleModelFactory(
             ResultSetMetaData metaData) throws SQLException {
-        
-        WriteRecordModelType<Map> model = 
+
+        WriteRecordModelType<Map> model =
             WriteRecordModelType.writeRecordModel(Map.class);
-        
+
         for (int i = 1; i <= metaData.getColumnCount(); i++) {
             String columnName = metaData.getColumnLabel(i);
             int sqlType = metaData.getColumnType(i);
             String typeName = metaData.getColumnTypeName(i);
             int precision = metaData.getPrecision(i);
             int scale = metaData.getScale(i);
-            
+
             // Try Oracle-specific mapping first
             FieldType fieldType = OracleTypeMapper.mapOracleType(
                 sqlType, typeName, precision, scale);
-            
+
             // Fallback to standard JDBC mapping
             if (fieldType == null) {
                 fieldType = standardJdbcTypeMapping(sqlType, precision, scale);
             }
-            
+
             final int columnIndex = i;
-            model.withField(columnName, fieldType, 
+            model.withField(columnName, fieldType,
                 map -> map.get(columnName));
         }
-        
+
         return model::build;
     }
 }
@@ -514,14 +514,14 @@ Create comprehensive tests for your database adapter:
 ```java
 @Testcontainers
 class OracleJdbcExporterTest {
-    
+
     @Container
-    private static final OracleContainer oracle = 
+    private static final OracleContainer oracle =
         new OracleContainer("gvenzl/oracle-xe:21-slim")
             .withDatabaseName("testdb")
             .withUsername("test")
             .withPassword("test");
-    
+
     @Test
     void exportOracleNumberTypes() throws Exception {
         try (Connection conn = oracle.createConnection("")) {
@@ -534,22 +534,22 @@ class OracleJdbcExporterTest {
                 "  float_val NUMBER(5,2)" +
                 ")"
             );
-            
+
             // Insert test data
             conn.createStatement().execute(
                 "INSERT INTO numbers_test VALUES (123, 123456789, 123.45, 12.34)"
             );
-            
+
             // Export
             File output = File.createTempFile("oracle", ".parquet");
             OracleJdbcExporter.exportToParquet(
-                conn, 
-                "SELECT * FROM numbers_test", 
+                conn,
+                "SELECT * FROM numbers_test",
                 output
             );
-            
+
             // Verify
-            try (CarpetReader<Map> reader = 
+            try (CarpetReader<Map> reader =
                     new CarpetReader<>(output, Map.class)) {
                 Map record = reader.stream().findFirst().orElseThrow();
                 assertEquals(123, record.get("small_int"));
@@ -558,12 +558,12 @@ class OracleJdbcExporterTest {
             }
         }
     }
-    
+
     @Test
     void exportOracleLobTypes() throws Exception {
         // Test CLOB and BLOB handling
     }
-    
+
     @Test
     void exportOracleDateTypes() throws Exception {
         // Test TIMESTAMP, DATE, TIMESTAMP WITH TIME ZONE
@@ -636,7 +636,7 @@ properties.setProperty("useCursors", "true");
 
 // Parallel processing for multi-table exports
 ExecutorService executor = Executors.newFixedThreadPool(4);
-tables.parallelStream().forEach(table -> 
+tables.parallelStream().forEach(table ->
     exportTable(connection, table, outputDir)
 );
 ```

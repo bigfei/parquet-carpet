@@ -198,7 +198,7 @@ FieldType mapOracleType(int sqlType, String typeName, int precision, int scale) 
     // Handle Oracle NUMBER, TIMESTAMP WITH TIME ZONE, XMLTYPE, etc.
 }
 
-// 2. Value converter  
+// 2. Value converter
 Object convertOracleValue(ResultSet rs, int idx, int sqlType, String typeName) {
     if (sqlType == Types.CLOB) {
         return readClob(rs.getClob(idx));
