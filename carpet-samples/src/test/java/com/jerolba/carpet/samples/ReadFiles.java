@@ -135,10 +135,11 @@ class ReadFiles {
      * Deserialize the record into a Java Map
      */
     @Test
+    @SuppressWarnings("unchecked")
     void toMap() {
         File file = givenEmployeesFile();
-        CarpetReader<Map> reader = new CarpetReader<>(file, Map.class);
-        Iterator<Map> iterator = reader.iterator();
+        CarpetReader<Map<String, Object>> reader = new CarpetReader<>(file, (Class<Map<String, Object>>) (Class<?>) Map.class);
+        Iterator<Map<String, Object>> iterator = reader.iterator();
         assertEquals(Map.of("id", 1L, "name", "John", "role", "CEO", "salary", 120000.0), iterator.next());
     }
 

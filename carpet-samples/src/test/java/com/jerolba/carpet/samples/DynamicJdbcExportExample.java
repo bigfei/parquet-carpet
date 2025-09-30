@@ -220,10 +220,10 @@ public class DynamicJdbcExportExample {
     /**
      * Helper method to verify export and read back results
      */
+    @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> verifyExport(File outputFile) throws IOException {
-        CarpetReader<Map> reader = new CarpetReader<>(outputFile, Map.class);
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> records = (List<Map<String, Object>>) (List<?>) reader.toList();
+        CarpetReader<Map<String, Object>> reader = new CarpetReader<>(outputFile, (Class<Map<String, Object>>) (Class<?>) Map.class);
+        List<Map<String, Object>> records = reader.toList();
         System.out.printf("  - Records exported: %d%n", records.size());
 
         if (!records.isEmpty()) {
@@ -366,11 +366,111 @@ public class DynamicJdbcExportExample {
             System.out.println("PostgreSQL JDBC driver not found. Add dependency: org.postgresql:postgresql:42.7.3");
         }
 
-        System.out.println("To use this example:");
+        // MySQL Example
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+
+            System.out.println("\n=== MySQL Example ===");
+
+            String mysqlUrl = "jdbc:mysql://localhost:3306/testdb";
+            String mysqlUser = "root";
+            String mysqlPassword = "password";
+
+            try (Connection mysqlConnection = DriverManager.getConnection(mysqlUrl, mysqlUser, mysqlPassword)) {
+
+                // Setup sample data
+                setupSampleData(mysqlConnection);
+
+                // Export with custom configuration
+                String sql = "SELECT e.employee_id, e.employee_name, e.salary, e.hire_date, " +
+                           "e.is_active, d.department_name, e.created_at " +
+                           "FROM employees e " +
+                           "JOIN departments d ON e.department_id = d.department_id " +
+                           "WHERE e.department_id = 1";
+
+                File outputFile = new File("mysql_employees_export.parquet");
+
+                DynamicExportConfig config = new DynamicExportConfig()
+                    .withBatchSize(1000)
+                    .withCompressionCodec(CompressionCodecName.SNAPPY)
+                    .withFetchSize(500);
+
+                DynamicJdbcExporter.exportWithConfig(mysqlConnection, sql, outputFile, config);
+
+                System.out.println("MySQL export completed successfully!");
+
+                // Verify export
+                List<Map<String, Object>> records = verifyExport(outputFile);
+                System.out.println("Exported " + records.size() + " records from MySQL");
+
+                // Clean up
+                outputFile.delete();
+            }
+
+        } catch (ClassNotFoundException e) {
+            System.out.println("MySQL JDBC driver not found. Add dependency: com.mysql:mysql-connector-j:8.0.33");
+        }
+
+        // SQLite Example
+        try {
+            Class.forName("org.sqlite.JDBC");
+
+            System.out.println("\n=== SQLite Example ===");
+
+            // SQLite uses file-based databases, no server needed
+            String sqliteUrl = "jdbc:sqlite:sample.db";
+
+            try (Connection sqliteConnection = DriverManager.getConnection(sqliteUrl)) {
+
+                // Setup sample data (creates tables if they don't exist)
+                setupSampleData(sqliteConnection);
+
+                // Export with custom configuration
+                String sql = "SELECT e.employee_id, e.employee_name, e.salary, e.hire_date, " +
+                           "e.is_active, d.department_name, e.created_at " +
+                           "FROM employees e " +
+                           "JOIN departments d ON e.department_id = d.department_id " +
+                           "WHERE e.department_id = 1";
+
+                File outputFile = new File("sqlite_employees_export.parquet");
+
+                DynamicExportConfig config = new DynamicExportConfig()
+                    .withBatchSize(1000)
+                    .withCompressionCodec(CompressionCodecName.SNAPPY)
+                    .withFetchSize(500);
+
+                DynamicJdbcExporter.exportWithConfig(sqliteConnection, sql, outputFile, config);
+
+                System.out.println("SQLite export completed successfully!");
+
+                // Verify export
+                List<Map<String, Object>> records = verifyExport(outputFile);
+                System.out.println("Exported " + records.size() + " records from SQLite");
+
+                // Clean up
+                outputFile.delete();
+            }
+
+        } catch (ClassNotFoundException e) {
+            System.out.println("SQLite JDBC driver not found. Add dependency: org.xerial:sqlite-jdbc:3.45.1.0");
+        }
+
+        System.out.println("To use these examples:");
+        System.out.println("PostgreSQL:");
         System.out.println("1. Start PostgreSQL server");
         System.out.println("2. Create database: CREATE DATABASE testdb;");
-        System.out.println("3. Create table and insert sample data");
-        System.out.println("4. Uncomment the example code above");
-        System.out.println("5. Update connection details as needed");
+        System.out.println("3. Uncomment the PostgreSQL example code");
+        System.out.println("4. Update connection details as needed");
+        System.out.println("");
+        System.out.println("MySQL:");
+        System.out.println("1. Start MySQL server");
+        System.out.println("2. Create database: CREATE DATABASE testdb;");
+        System.out.println("3. Uncomment the MySQL example code");
+        System.out.println("4. Update connection details as needed");
+        System.out.println("");
+        System.out.println("SQLite:");
+        System.out.println("1. No server needed - uses local file");
+        System.out.println("2. Uncomment the SQLite example code");
+        System.out.println("3. Update database file path if needed");
     }
 }

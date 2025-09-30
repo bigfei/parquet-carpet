@@ -37,7 +37,7 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 /**
  * Unit tests for DynamicJdbcExporter using DuckDB as the in-memory database.
  */
-class DynamicJdbcExporterTest {
+class DynamicJdbcExporterDuckDBTest {
 
     private Connection connection;
 
@@ -194,8 +194,8 @@ class DynamicJdbcExporterTest {
             assertEquals(java.sql.Types.BIGINT, idColumn.type());
             assertEquals("BIGINT", idColumn.typeName());
             // Note: DuckDB JDBC driver reports primary key columns as nullable despite NOT NULL constraint
-      // This appears to be a DuckDB JDBC driver behavior
-      assertTrue(idColumn.nullable(), "DuckDB reports primary key columns as nullable");
+            // This appears to be a DuckDB JDBC driver behavior
+            assertTrue(idColumn.nullable(), "DuckDB reports primary key columns as nullable");
 
             DynamicJdbcExporter.ColumnInfo nameColumn = columns.get(1);
             assertEquals("name", nameColumn.label());
@@ -261,9 +261,9 @@ class DynamicJdbcExporterTest {
      */
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> readParquetFile(File file) throws IOException {
-        CarpetReader<Map> reader = new CarpetReader<>(file, Map.class);
+        CarpetReader<Map<String, Object>> reader = new CarpetReader<>(file, (Class<Map<String, Object>>) (Class<?>) Map.class);
         try {
-            return (List<Map<String, Object>>) (List<?>) reader.toList();
+            return reader.toList();
         } finally {
             // Note: CarpetReader doesn't implement Closeable directly
             // The iterator handles resource cleanup

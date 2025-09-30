@@ -21,15 +21,12 @@ import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-import java.util.function.Function;
 import com.jerolba.carpet.*;
 import com.jerolba.carpet.io.FileSystemOutputFile;
 import com.jerolba.carpet.WriteModelFactory;
 import com.jerolba.carpet.model.WriteRecordModelType;
 import com.jerolba.carpet.model.FieldTypes;
 import com.jerolba.carpet.model.FieldType;
-import org.apache.parquet.hadoop.metadata.CompressionCodecName;
-import org.apache.parquet.schema.*;
 
 /**
  * Dynamic JDBC to Parquet exporter that works without predefined Java record classes.
@@ -228,6 +225,24 @@ public class DynamicJdbcExporter {
             }
         }
 
+        // Handle byte arrays (BLOB data) - convert to Parquet Binary
+        if (value instanceof byte[]) {
+            return org.apache.parquet.io.api.Binary.fromConstantByteArray((byte[]) value);
+        }
+
+        // MySQL-specific type handling (before switch to catch numeric types)
+        if (value instanceof Byte) {
+            return ((Byte) value).intValue();
+        }
+        if (value instanceof Short) {
+            return ((Short) value).intValue();
+        }
+
+        // SQLite-specific type handling (REAL type comes as Double, convert to Float)
+        if (value instanceof Double && sqlType == java.sql.Types.REAL) {
+            return ((Double) value).floatValue();
+        }
+
         // Convert specific SQL types to appropriate Java types
         return switch (sqlType) {
             case java.sql.Types.ARRAY -> {
@@ -256,7 +271,7 @@ public class DynamicJdbcExporter {
 
             case java.sql.Types.BINARY, java.sql.Types.VARBINARY, java.sql.Types.LONGVARBINARY -> {
                 byte[] bytes = resultSet.getBytes(columnIndex);
-                yield bytes != null ? org.apache.parquet.io.api.Binary.fromByteArray(bytes) : null;
+                yield bytes != null ? org.apache.parquet.io.api.Binary.fromConstantByteArray(bytes) : null;
             }
 
             case java.sql.Types.CHAR, java.sql.Types.VARCHAR, java.sql.Types.LONGVARCHAR,
@@ -287,6 +302,23 @@ public class DynamicJdbcExporter {
                     !(value instanceof java.time.LocalDate) && !(value instanceof java.time.LocalDateTime) &&
                     !(value instanceof java.time.LocalTime) && !(value instanceof BigDecimal)) {
                     yield value.toString();
+                }
+                yield value;
+            }
+
+            // MySQL-specific type handling
+            case java.sql.Types.TINYINT -> {
+                // Convert MySQL TINYINT to Integer instead of Byte for consistency
+                if (value instanceof Number) {
+                    yield ((Number) value).intValue();
+                }
+                yield value;
+            }
+
+            case java.sql.Types.SMALLINT -> {
+                // Convert MySQL SMALLINT to Integer instead of Short for consistency
+                if (value instanceof Number) {
+                    yield ((Number) value).intValue();
                 }
                 yield value;
             }
@@ -391,6 +423,13 @@ public class DynamicJdbcExporter {
             case java.sql.Types.NUMERIC, java.sql.Types.DECIMAL -> {
                 int precision = metaData.getPrecision(columnIndex);
                 int scale = metaData.getScale(columnIndex);
+
+                // Handle databases that report precision as 0 (like SQLite)
+                if (precision <= 0) {
+                    precision = 18; // Default precision
+                    scale = 10;    // Use a flexible scale to accommodate various decimal values
+                }
+
                 var decimalType = FieldTypes.BIG_DECIMAL.withPrecisionScale(precision, scale);
                 yield isNotNull ? decimalType.notNull() : decimalType;
             }
@@ -407,12 +446,17 @@ public class DynamicJdbcExporter {
                         // For JSON, use STRING type but ensure values are converted to String
                         yield isNotNull ? FieldTypes.STRING.notNull() : FieldTypes.STRING;
                     }
+                    // Handle SQLite BLOB columns that might be reported as VARCHAR
+                    if ("BLOB".equalsIgnoreCase(typeName)) {
+                        yield isNotNull ? FieldTypes.BINARY.notNull() : FieldTypes.BINARY;
+                    }
                 } catch (SQLException e) {
                     // Fall back to regular STRING handling
                 }
                 yield isNotNull ? FieldTypes.STRING.notNull() : FieldTypes.STRING;
             }
-            case java.sql.Types.BINARY, java.sql.Types.VARBINARY, java.sql.Types.LONGVARBINARY -> isNotNull ? FieldTypes.BINARY.notNull() : FieldTypes.BINARY;
+            case java.sql.Types.BINARY, java.sql.Types.VARBINARY, java.sql.Types.LONGVARBINARY,
+             java.sql.Types.BLOB -> isNotNull ? FieldTypes.BINARY.notNull() : FieldTypes.BINARY;
             case java.sql.Types.ARRAY -> {
                 // Arrays are converted to String representations for Parquet compatibility
                 yield isNotNull ? FieldTypes.STRING.notNull() : FieldTypes.STRING;

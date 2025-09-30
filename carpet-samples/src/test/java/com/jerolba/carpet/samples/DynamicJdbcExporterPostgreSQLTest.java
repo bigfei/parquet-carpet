@@ -47,6 +47,7 @@ import org.testcontainers.utility.DockerImageName;
 class DynamicJdbcExporterPostgreSQLTest {
 
     @Container
+    @SuppressWarnings("resource") // Testcontainers handles lifecycle automatically
     private static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
         DockerImageName.parse("postgres:15-alpine"))
         .withDatabaseName("testdb")
@@ -262,9 +263,9 @@ class DynamicJdbcExporterPostgreSQLTest {
      */
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> readParquetFile(File file) throws IOException {
-        CarpetReader<Map> reader = new CarpetReader<>(file, Map.class);
+        CarpetReader<Map<String, Object>> reader = new CarpetReader<>(file, (Class<Map<String, Object>>) (Class<?>) Map.class);
         try {
-            return (List<Map<String, Object>>) (List<?>) reader.toList();
+            return reader.toList();
         } finally {
             // Note: CarpetReader doesn't implement Closeable directly
             // The iterator handles resource cleanup

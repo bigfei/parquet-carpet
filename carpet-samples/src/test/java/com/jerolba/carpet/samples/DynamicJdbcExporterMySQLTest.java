@@ -21,15 +21,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.sql.*;
 import java.io.*;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Stream;
 
@@ -39,7 +36,6 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.utility.DockerImageName;
 
 /**
@@ -60,6 +56,7 @@ import org.testcontainers.utility.DockerImageName;
 class DynamicJdbcExporterMySQLTest {
 
     @Container
+    @SuppressWarnings("resource") // Testcontainers handles lifecycle automatically
     private static final MySQLContainer<?> mysql = new MySQLContainer<>(
         DockerImageName.parse("mysql:8.0"))
         .withDatabaseName("testdb")
@@ -389,11 +386,10 @@ class DynamicJdbcExporterMySQLTest {
     /**
      * Helper method to read Parquet file back for verification
      */
+    @SuppressWarnings("unchecked")
     private List<Map<String, Object>> readParquetFile(File file) throws IOException {
-        CarpetReader<Map> reader = new CarpetReader<>(file, Map.class);
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> records = (List<Map<String, Object>>) (List<?>) reader.toList();
-        return records;
+        CarpetReader<Map<String, Object>> reader = new CarpetReader<>(file, (Class<Map<String, Object>>) (Class<?>) Map.class);
+        return reader.toList();
     }
 
     /**
