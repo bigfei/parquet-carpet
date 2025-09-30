@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.jerolba.carpet.samples;
+package com.jerolba.carpet.jdbc;
 
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import com.jerolba.carpet.ColumnNamingStrategy;

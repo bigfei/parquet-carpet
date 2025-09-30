@@ -22,7 +22,7 @@ The `DynamicJdbcExporter` class provides a way to export JDBC ResultSet data to 
 ### Basic Usage
 
 ```java
-import com.jerolba.carpet.samples.*;
+import com.jerolba.carpet.jdbc.*;
 import java.sql.*;
 import java.io.File;
 

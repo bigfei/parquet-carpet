@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.jerolba.carpet.samples;
+package com.jerolba.carpet.jdbc;
 
-import static com.jerolba.carpet.samples.WriteFiles.createBsonBinary;
+import static com.jerolba.carpet.jdbc.WriteFiles.createBsonBinary;
 import static org.apache.parquet.filter2.predicate.FilterApi.and;
 import static org.apache.parquet.filter2.predicate.FilterApi.doubleColumn;
 import static org.apache.parquet.filter2.predicate.FilterApi.gt;
