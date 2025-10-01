@@ -15,15 +15,20 @@
  */
 package com.jerolba.carpet.jdbc;
 
-import java.sql.*;
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 
 import com.jerolba.carpet.CarpetReader;
-import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import com.jerolba.carpet.ColumnNamingStrategy;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 
 /**
  * Example demonstrating dynamic JDBC to Parquet export using DuckDB and PostgreSQL.

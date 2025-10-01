@@ -15,18 +15,29 @@
  */
 package com.jerolba.carpet.jdbc;
 
-import java.sql.*;
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-import com.jerolba.carpet.*;
-import com.jerolba.carpet.io.FileSystemOutputFile;
+
+import com.jerolba.carpet.CarpetWriter;
 import com.jerolba.carpet.WriteModelFactory;
-import com.jerolba.carpet.model.WriteRecordModelType;
-import com.jerolba.carpet.model.FieldTypes;
+import com.jerolba.carpet.io.FileSystemOutputFile;
 import com.jerolba.carpet.model.FieldType;
+import com.jerolba.carpet.model.FieldTypes;
+import com.jerolba.carpet.model.WriteRecordModelType;
 
 /**
  * Dynamic JDBC to Parquet exporter that works without predefined Java record classes.
