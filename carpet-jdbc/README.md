@@ -17,6 +17,7 @@ The `DynamicJdbcExporter` class provides a way to export JDBC ResultSet data to 
 - **PostgreSQL** (Full support with advanced data types)
 - **MySQL** (Full support with MySQL-specific data types)
 - **SQLite** (Full support with file-based databases and dynamic typing)
+- **GaussDB** (Full support - PostgreSQL-compatible with Huawei extensions)
 - Any JDBC-compliant database (with potential limitations)
 
 ### Basic Usage
@@ -277,6 +278,138 @@ try (Connection sqliteConnection = DriverManager.getConnection(sqliteUrl)) {
 ./gradlew :carpet-jdbc:test --tests DynamicJdbcExporterSQLiteTest
 ```
 
+### GaussDB Support
+
+GaussDB (Huawei's enterprise-grade relational database) is fully supported. GaussDB is based on PostgreSQL, so most PostgreSQL features work seamlessly, with additional support for Huawei-specific extensions.
+
+**GaussDB Compatibility:**
+- Full PostgreSQL compatibility (based on PostgreSQL 9.x/10.x+)
+- Support for standard SQL types and PostgreSQL extensions
+- JSON/JSONB types supported
+- Array types supported
+- Spatial types (if enabled)
+- Advanced data types (UUID, INET, etc.)
+
+**GaussDB-Specific Field Mappings:**
+Since GaussDB is PostgreSQL-compatible, it uses the same type mappings:
+- `INTEGER` → `INT32` (standard integer)
+- `BIGINT` → `INT64` (64-bit integer)
+- `VARCHAR`/`TEXT` → `BINARY` (string data, UTF-8)
+- `DECIMAL(p,s)` → `DECIMAL(p,s)` (precision/scale preserved)
+- `TIMESTAMP` → `INT64` (microseconds from epoch)
+- `DATE` → `INT32` (days from Unix epoch)
+- `BOOLEAN` → `BOOLEAN` (true/false)
+- `JSON`/`JSONB` → `String` (BINARY in Parquet)
+- Arrays → `String` (array representation)
+- `UUID` → `String` (UUID.toString())
+- `BYTEA` → `BINARY` (byte array)
+
+#### GaussDB Connection Example
+
+```java
+// GaussDB connection using environment variables
+String url = System.getenv().getOrDefault("GAUSSDB_URL", 
+    "jdbc:gaussdb://127.0.0.1:8889/sit_suncbs_coredb");
+String username = System.getenv("GAUSSDB_USERNAME");
+String password = System.getenv("GAUSSDB_PASSWORD");
+
+try (Connection gaussConnection = DriverManager.getConnection(url, username, password)) {
+    String sql = "SELECT employee_id, employee_name, department, salary, hire_date " +
+                 "FROM employees WHERE department = 'Engineering'";
+    
+    File outputFile = new File("gaussdb_employees.parquet");
+    
+    // Simple export
+    DynamicJdbcExporter.exportResultSetToParquet(gaussConnection, sql, outputFile);
+    
+    System.out.println("GaussDB export completed successfully!");
+}
+```
+
+#### GaussDB Export with Configuration
+
+```java
+// GaussDB connection
+String url = "jdbc:gaussdb://127.0.0.1:8889/sit_suncbs_coredb";
+String username = System.getenv("GAUSSDB_USERNAME");
+String password = System.getenv("GAUSSDB_PASSWORD");
+
+try (Connection connection = DriverManager.getConnection(url, username, password)) {
+    String sql = "SELECT * FROM large_table WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'";
+    File outputFile = new File("gaussdb_large_export.parquet");
+    
+    // Configure for optimal performance
+    DynamicExportConfig config = new DynamicExportConfig()
+        .withBatchSize(5000)           // Larger batches for better performance
+        .withFetchSize(1000)           // Optimize network roundtrips
+        .withCompressionCodec(CompressionCodecName.GZIP)  // Better compression
+        .withColumnNamingStrategy(ColumnNamingStrategy.SNAKE_CASE);
+    
+    DynamicJdbcExporter.exportWithConfig(connection, sql, outputFile, config);
+}
+```
+
+#### GaussDB Integration Tests
+
+The GaussDB tests require a running GaussDB instance and use environment variables for connection:
+
+```bash
+# Set environment variables
+export GAUSSDB_URL="jdbc:gaussdb://127.0.0.1:8889/sit_suncbs_coredb"
+export GAUSSDB_USERNAME="your_username"
+export GAUSSDB_PASSWORD="your_password"
+
+# Run GaussDB integration tests
+./gradlew :carpet-jdbc:test --tests DynamicJdbcExporterGaussDBTest
+
+# Tests will be skipped if credentials are not set
+```
+
+**Important Notes:**
+
+1. **Database Permissions**: The test user needs `CREATE TABLE` permission in the database. If you get a "Permission denied for schema public" error, grant the necessary permissions:
+
+   ```sql
+   -- Option 1: Grant permissions on public schema
+   GRANT CREATE ON SCHEMA public TO your_username;
+   GRANT USAGE ON SCHEMA public TO your_username;
+   
+   -- Option 2: Create a dedicated test schema
+   CREATE SCHEMA test_schema AUTHORIZATION your_username;
+   -- Then modify GAUSSDB_URL to include the schema:
+   -- export GAUSSDB_URL="jdbc:gaussdb://host:port/database?currentSchema=test_schema"
+   ```
+
+2. **Test Behavior**: Unlike PostgreSQL and MySQL tests which use Testcontainers, GaussDB tests connect to a real database instance since GaussDB container images are not publicly available. The tests will be automatically skipped if:
+   - Required environment variables are not set
+   - Connection to the database fails
+   - User doesn't have sufficient permissions to create test tables
+
+3. **Cleanup**: Tests automatically clean up all created tables in the `@AfterEach` method.
+
+**📖 For detailed setup instructions, troubleshooting, and usage examples, see the [GaussDB Support Guide](../docs/gaussdb-support.md).**
+
+#### GaussDB JDBC Dependency
+
+To use GaussDB with the Carpet JDBC module, include the GaussDB JDBC driver:
+
+```gradle
+dependencies {
+    implementation project(':carpet-record')
+    implementation "com.huaweicloud.gaussdb:gaussdbjdbc:506.0.0.b058"
+}
+```
+
+Or with Maven:
+
+```xml
+<dependency>
+    <groupId>com.huaweicloud.gaussdb</groupId>
+    <artifactId>gaussdbjdbc</artifactId>
+    <version>506.0.0.b058</version>
+</dependency>
+```
+
 ## Dependencies
 
 To use the dynamic JDBC export functionality, you need:
@@ -296,6 +429,9 @@ dependencies {
 
     // For SQLite
     implementation "org.xerial:sqlite-jdbc:3.45.1.0"
+
+    // For GaussDB
+    implementation "com.huaweicloud.gaussdb:gaussdbjdbc:506.0.0.b058"
 
     // For integration tests (optional)
     testImplementation "org.testcontainers:junit-jupiter:1.19.7"

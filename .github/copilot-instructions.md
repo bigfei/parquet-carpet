@@ -5,8 +5,10 @@
 Carpet is a Java library that simplifies Parquet file serialization/deserialization using Java records. The project provides a high-level API wrapping Apache Parquet's complex internals while minimizing transitive dependencies.
 
 **Core modules:**
-- `carpet-record`: Main library with writer/reader APIs
+- `carpet-record`: Main library with writer/reader APIs (version 0.5.0)
 - `carpet-jdbc`: JDBC-to-Parquet export adapters for multiple databases (PostgreSQL, MySQL, SQLite, DuckDB)
+
+**Multi-module Gradle project:** `settings.gradle` declares both modules; build using `./gradlew build`
 
 ## Architecture
 
@@ -86,14 +88,24 @@ Set globally via builder: `.withColumnNamingStrategy(ColumnNamingStrategy.SNAKE_
 
 ## Build & Test
 
-**Build:** `./gradlew build` (runs tests + checkstyle + jacoco coverage)
-**Test only:** `./gradlew test`
-**Assemble JARs:** `./gradlew assemble`
+**Essential commands:**
+- `./gradlew build` - Full build with tests, checkstyle, jacoco coverage
+- `./gradlew test` - Run tests only
+- `./gradlew assemble` - Build JARs without running tests
+- `./gradlew jacocoTestReport` - Generate coverage reports
 
 **Key requirements:**
-- Java 17+ toolchain required
-- All code must include Apache 2.0 license header (enforced by `com.github.hierynomus.license` plugin)
+- Java 17+ toolchain required (configured in `carpet-record/build.gradle`)
+- All code must include Apache 2.0 license header (enforced by `com.github.hierynomus.license` plugin in root `build.gradle`)
 - Tests use JUnit 5 with nested test classes for organization
+- CI/CD via GitHub Actions (`.github/workflows/build-gradle-project.yml`) runs on every push
+
+**Version management:**
+All version properties are centralized in `gradle.properties`:
+- `version = 0.5.0` (project version)
+- `parquetVersion = 1.16.0`
+- `hadoopVersion = 3.4.1`
+- `junitVersion = 5.13.4`
 
 ## Development Conventions
 
@@ -119,7 +131,22 @@ void testSomething() {
 }
 ```
 
-Use `writeRecordModel()` fluent API for programmatic schema construction in tests.
+Use `writeRecordModel()` fluent API for programmatic schema construction in tests:
+
+```java
+import static com.jerolba.carpet.model.FieldTypes.*;
+import static com.jerolba.carpet.model.WriteRecordModelType.writeRecordModel;
+
+writeRecordModel(MyRecord.class)
+    .withField("id", STRING, MyRecord::id)
+    .withField("count", INTEGER, MyRecord::count);
+```
+
+**JDBC module testing:** Use Testcontainers for database integration tests:
+- Annotate test class with `@Testcontainers`
+- Declare containers with `@Container` annotation
+- Example: `PostgreSQLContainer`, `MySQLContainer`, `OracleContainer`
+- Tests create schema, insert data, export to Parquet, verify roundtrip
 
 ## Common Tasks
 
