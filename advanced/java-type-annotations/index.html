@@ -1,0 +1,1556 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Parquet Serialization and Deserialization Library for Java">
+      
+      
+      
+        <link rel="canonical" href="https://jerolba.github.io/parquet-carpet/advanced/java-type-annotations/">
+      
+      
+        <link rel="prev" href="../data-types/">
+      
+      
+        <link rel="next" href="../column-mapping/">
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.22">
+    
+    
+      
+        <title>Java Types Annotations - Carpet Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.84d31ad4.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="green">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#java-type-annotations" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Carpet Documentation" class="md-header__button md-logo" aria-label="Carpet Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Carpet Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Java Types Annotations
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="green"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="green" data-md-color-accent="green"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/jerolba/parquet-carpet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    jerolba/parquet-carpet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Carpet Documentation" class="md-nav__button md-logo" aria-label="Carpet Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Carpet Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/jerolba/parquet-carpet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    jerolba/parquet-carpet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Getting Started
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Getting Started
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Installation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/basic-usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Basic Usage
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/carpetwriter-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CarpetWriter API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/carpetreader-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CarpetReader API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Advanced Usage
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Advanced Usage
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Data Types
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Java Types Annotations
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Java Types Annotations
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#parquetstring-annotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      @ParquetString annotation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="@ParquetString annotation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#with-binary-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      With Binary type
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#with-enum-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      With Enum type
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#parquetenum-annotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      @ParquetEnum annotation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="@ParquetEnum annotation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#with-binary-type_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      With Binary type
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#with-string-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      With String type
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#parquetjson-annotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      @ParquetJson annotation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#parquetbson-annotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      @ParquetBson annotation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bigdecimal-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      BigDecimal type
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="BigDecimal type">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#precisionscale-annotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      @PrecisionScale annotation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rounding-annotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      @Rounding annotation
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#geospatial-type-annotations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Geospatial Type Annotations
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Geospatial Type Annotations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parquetgeometry-annotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      @ParquetGeometry annotation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="@ParquetGeometry annotation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#with-jts-geometry" class="md-nav__link">
+    <span class="md-ellipsis">
+      With JTS Geometry
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#with-binary-wkb-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      With Binary (WKB format)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#with-coordinate-reference-system" class="md-nav__link">
+    <span class="md-ellipsis">
+      With Coordinate Reference System
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parquetgeography-annotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      @ParquetGeography annotation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="@ParquetGeography annotation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#with-jts-geometry_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      With JTS Geometry
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#with-binary-wkb-format_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      With Binary (WKB format)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#with-configuration-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      With Configuration Options
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coordinate-reference-system-crs" class="md-nav__link">
+    <span class="md-ellipsis">
+      Coordinate Reference System (CRS)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#edge-interpolation-algorithms" class="md-nav__link">
+    <span class="md-ellipsis">
+      Edge Interpolation Algorithms
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#collection-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      Collection Support
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../column-mapping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Column Mapping
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../projections/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Projections
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../schema-mismatch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Schema Mismatch
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nullability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Nullability
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../input-output-files/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Input and Output Files
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Advanced Configuration
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../low-level-parquet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Low Level Parquet Classes
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../write-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Write Model
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#parquetstring-annotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      @ParquetString annotation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="@ParquetString annotation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#with-binary-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      With Binary type
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#with-enum-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      With Enum type
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#parquetenum-annotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      @ParquetEnum annotation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="@ParquetEnum annotation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#with-binary-type_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      With Binary type
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#with-string-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      With String type
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#parquetjson-annotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      @ParquetJson annotation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#parquetbson-annotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      @ParquetBson annotation
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bigdecimal-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      BigDecimal type
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="BigDecimal type">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#precisionscale-annotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      @PrecisionScale annotation
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rounding-annotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      @Rounding annotation
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#geospatial-type-annotations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Geospatial Type Annotations
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Geospatial Type Annotations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parquetgeometry-annotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      @ParquetGeometry annotation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="@ParquetGeometry annotation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#with-jts-geometry" class="md-nav__link">
+    <span class="md-ellipsis">
+      With JTS Geometry
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#with-binary-wkb-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      With Binary (WKB format)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#with-coordinate-reference-system" class="md-nav__link">
+    <span class="md-ellipsis">
+      With Coordinate Reference System
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parquetgeography-annotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      @ParquetGeography annotation
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="@ParquetGeography annotation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#with-jts-geometry_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      With JTS Geometry
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#with-binary-wkb-format_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      With Binary (WKB format)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#with-configuration-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      With Configuration Options
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coordinate-reference-system-crs" class="md-nav__link">
+    <span class="md-ellipsis">
+      Coordinate Reference System (CRS)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#edge-interpolation-algorithms" class="md-nav__link">
+    <span class="md-ellipsis">
+      Edge Interpolation Algorithms
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#collection-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      Collection Support
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="java-type-annotations">Java Type Annotations</h1>
+<p>Carpet allows you to store <code>String</code>, Enum, or <code>org.apache.parquet.io.api.Binary</code> fields as the Parquet <code>BINARY</code> type with different logical types, such as String, Enum, JSON, or BSON. This is useful for embedding JSON, BSON documents, or any raw binary data directly into your Parquet files if no native type is available for your use case.</p>
+<p>You can use the <code>@ParquetString</code>, <code>@ParquetEnum</code>, <code>@ParquetJson</code>, or <code>@ParquetBson</code> annotations to configure the logical type in the Parquet schema. These annotations do not transform or convert the actual data. They simply specify how the data should be interpreted in the Parquet format. Carpet does not validate the content of the data, so you must ensure that the data you are writing is valid String, JSON, or BSON.</p>
+<p>These annotations can be applied to record components or collection elements (<code>List&lt;@ParquetBson Binary&gt; values</code>). The following sections describe how to use these annotations with different types.</p>
+<h2 id="parquetstring-annotation">@ParquetString annotation</h2>
+<p>The <code>@ParquetString</code> annotation is used to specify that a field should be stored as a Parquet string type when the field type is an Enum or a Parquet Java <code>Binary</code> type.</p>
+<p>By default, Carpet converts <code>Binary</code> and Enum types to their corresponding Parquet types. However, for some use cases, you may want to store them as binary strings instead, overriding the default behavior.</p>
+<h3 id="with-binary-type">With Binary type</h3>
+<p>The following record:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kd">record</span> <span class="nc">Person</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="nd">@ParquetString</span><span class="w"> </span><span class="n">Binary</span><span class="w"> </span><span class="n">code</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>will be converted to the following Parquet schema:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>message Person {
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  optional binary name (STRING);
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>  optional binary code (STRING);
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>}
+</code></pre></div>
+<p>This is useful when the source of your information is a <code>Binary</code> type, but you still want to store it as a string in Parquet.</p>
+<h3 id="with-enum-type">With Enum type</h3>
+<p>The following record:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kd">enum</span><span class="w"> </span><span class="n">Category</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">HIGH</span><span class="p">,</span><span class="w"> </span><span class="n">MEDIUM</span><span class="p">,</span><span class="w"> </span><span class="n">LOW</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="kd">record</span> <span class="nc">Person</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="nd">@ParquetString</span><span class="w"> </span><span class="n">Category</span><span class="w"> </span><span class="n">category</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>will be converted to the following Parquet schema:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>message Person {
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>  optional binary name (STRING);
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>  optional binary category (STRING);
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>}
+</code></pre></div>
+<p>You can work with enumerations while keeping their String representation in Parquet, without breaking contracts with other systems.</p>
+<h2 id="parquetenum-annotation">@ParquetEnum annotation</h2>
+<p>The <code>@ParquetEnum</code> annotation is used to specify that a field should be stored as a Parquet enum type when the field type is a <code>String</code> or a Parquet Java <code>Binary</code> type.</p>
+<p>By default, Carpet converts <code>Binary</code> and <code>String</code> types to their corresponding Parquet types. However, for some use cases, you may want to store them as binary Enum instead, overriding the default behavior.</p>
+<h3 id="with-binary-type_1">With Binary type</h3>
+<p>The following record:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kd">record</span> <span class="nc">Person</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="nd">@ParquetEnum</span><span class="w"> </span><span class="n">Binary</span><span class="w"> </span><span class="n">code</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>will be converted to the following Parquet schema:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>message Person {
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>  optional binary name (STRING);
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>  optional binary code (ENUM);
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>}
+</code></pre></div>
+<p>This is useful when the source of your information is a <code>Binary</code> type, but you still want to store it as an Enum in Parquet.</p>
+<h3 id="with-string-type">With String type</h3>
+<p>The following record:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kd">record</span> <span class="nc">Person</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="nd">@ParquetEnum</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="n">category</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>will be converted to the following Parquet schema:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>message Person {
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>  optional binary name (STRING);
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>  optional binary category (ENUM);
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>}
+</code></pre></div>
+<p>You can work with Strings while keeping their Enum representation in Parquet, without breaking contracts with other systems.</p>
+<h2 id="parquetjson-annotation">@ParquetJson annotation</h2>
+<p>Java does not have a native JSON type, but you can use <code>String</code> or <code>Binary</code> to store JSON data. The <code>@ParquetJson</code> annotation is used to specify that a field should be stored as a Parquet JSON type when the field type is a <code>String</code> or <code>Binary</code>.</p>
+<p>To store a field as JSON, annotate the record component with <code>@ParquetJson</code>. The data will be stored as Parquet <code>binary</code> with the <code>JSON</code> logical type.</p>
+<p>The following record:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kd">record</span> <span class="nc">ProductEvent</span><span class="p">(</span><span class="kt">long</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">Instant</span><span class="w"> </span><span class="n">timestamp</span><span class="p">,</span><span class="w"> </span><span class="nd">@ParquetJson</span><span class="w"> </span><span class="n">String</span><span class="w"> </span><span class="n">jsonData</span><span class="p">){}</span>
+</code></pre></div>
+<p>generates a schema with a <code>binary</code> field annotated with the <code>JSON</code> logical type:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>message ProductEvent {
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    required int64 id;
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    required int64 timestamp (TIMESTAMP(MILLIS,true));
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    optional binary jsonData (JSON);
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>}
+</code></pre></div>
+<p><code>@ParquetJson</code> can also annotate the <code>Binary</code> class.</p>
+<h2 id="parquetbson-annotation">@ParquetBson annotation</h2>
+<p>Similar to JSON, Java does not have a native BSON type, but you can use the <code>Binary</code> type to store BSON data. The <code>@ParquetBson</code> annotation is used to specify that a field should be stored as a Parquet BSON type when the field type is <code>Binary</code>.</p>
+<p>The following record:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kd">record</span> <span class="nc">ProductEvent</span><span class="p">(</span><span class="kt">long</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">Instant</span><span class="w"> </span><span class="n">timestamp</span><span class="p">,</span><span class="w"> </span><span class="nd">@ParquetBson</span><span class="w"> </span><span class="n">Binary</span><span class="w"> </span><span class="n">bsonData</span><span class="p">){}</span>
+</code></pre></div>
+<p>generates a schema with a <code>binary</code> field annotated with the <code>BSON</code> logical type:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>message ProductEvent {
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    required int64 id;
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>    required int64 timestamp (TIMESTAMP(MILLIS,true));
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>    optional binary bsonData (BSON);
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>}
+</code></pre></div>
+<p>Carpet does not validate the content of the data, so you must ensure that the data you are writing is valid BSON.</p>
+<h2 id="bigdecimal-type">BigDecimal type</h2>
+<p>The <code>BigDecimal</code> type is used to represent arbitrary-precision decimal numbers. In Parquet, <code>BigDecimal</code> can be represented by multiple physical Parquet types, all configured with the <code>DECIMAL</code> logical type and a specified precision and scale.</p>
+<h3 id="precisionscale-annotation">@PrecisionScale annotation</h3>
+<p>The precision is the total number of digits, and the scale is the number of digits to the right of the decimal point.</p>
+<p>When writing a file, the precision and scale can be configured globally in the <a href="../configuration/#bigdecimal-precision-and-scale">writer configuration</a> or per record field using the <code>@PrecisionScale</code> annotation. Annotation configuration takes precedence over the writer configuration.</p>
+<p>The following record:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="kd">record</span> <span class="nc">Product</span><span class="p">(</span><span class="kt">long</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="nd">@PrecisionScale</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="n">BigDecimal</span><span class="w"> </span><span class="n">price</span><span class="p">)</span><span class="w"> </span><span class="p">{}</span>
+</code></pre></div>
+<p>will be converted to the following Parquet schema:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>message Product {
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>  required int64 id;
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>  optional binary price (DECIMAL(20,4));
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>}
+</code></pre></div>
+<p>When writing a file with a configured precision and scale, Carpet adapts the data to these specifications. If the data in the file has a different precision or scale, it will be converted to the specified precision and scale.</p>
+<p>When reading a file with a record field annotated with <code>@PrecisionScale</code>, Carpet does NOT validate the precision and scale of the data. It reads the data as <code>BigDecimal</code> using the precision and scale from the file. If the data in the file has a different precision or scale, Carpet will not throw an error or convert it. You must ensure that the data you are reading is valid for the specified precision and scale.</p>
+<h3 id="rounding-annotation">@Rounding annotation</h3>
+<p>If scale adjustment is needed, you must configure the rounding mode to round the value to the specified scale.</p>
+<p>When writing a file, the rounding mode can be configured globally in the <a href="../configuration/#bigdecimal-precision-and-scale">writer configuration</a> or per record field using the <code>@Rounding</code> annotation. Annotation configuration takes precedence over the writer configuration.</p>
+<p>The <code>@Rounding</code> annotation requires a <code>RoundingMode</code> enum parameter, which is used to round <code>BigDecimal</code> values in the Java API. This annotation does not modify the generated Parquet schema but configures the rounding mode for <code>BigDecimal</code> values.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kd">record</span> <span class="nc">Product</span><span class="p">(</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">    </span><span class="kt">long</span><span class="w"> </span><span class="n">id</span><span class="p">,</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">    </span><span class="nd">@PrecisionScale</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="nd">@Rounding</span><span class="p">(</span><span class="n">RoundingMode</span><span class="p">.</span><span class="na">HALF_UP</span><span class="p">)</span><span class="w"> </span><span class="n">BigDecimal</span><span class="w"> </span><span class="n">price</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="p">}</span>
+</code></pre></div>
+<p>If the rounding mode is not specified via annotation or writer configuration, the default is <code>RoundingMode.UNNECESSARY</code>. This means an exception will be thrown if rounding is necessary, which is useful to ensure data integrity if no changes are expected during conversion.</p>
+<p><code>@PrecisionScale</code> and <code>@Rounding</code> annotations can be used together or separately, depending on your use case and how you want to configure the precision and scale of <code>BigDecimal</code> values in your Parquet files.</p>
+<h2 id="geospatial-type-annotations">Geospatial Type Annotations</h2>
+<p>Carpet supports storing geospatial data using specialized annotations that define how geometry and geography data should be stored in Parquet files. These annotations can be applied to <code>org.locationtech.jts.geom.Geometry</code> fields, or Parquet <code>Binary</code> fields containing Well-Known Binary (WKB) geometry data.</p>
+<h3 id="parquetgeometry-annotation">@ParquetGeometry annotation</h3>
+<p>The <code>@ParquetGeometry</code> annotation is used to specify that a field should be stored as a Parquet geometry type for planar/projected coordinate systems. This annotation is suitable for geometry data that uses projected coordinate reference systems where calculations are performed on a flat plane.</p>
+<h4 id="with-jts-geometry">With JTS Geometry</h4>
+<p>The following record uses JTS Geometry objects directly:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="kd">record</span> <span class="nc">Location</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="nd">@ParquetGeometry</span><span class="w"> </span><span class="n">Geometry</span><span class="w"> </span><span class="n">geom</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>This will be converted to a Parquet schema with a <code>binary</code> field annotated with the <code>GEOMETRY</code> logical type, and Carpet will serialize the Geometry object (any JTS Geometry) to WKB format:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>message Location {
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>  optional binary name (STRING);
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>  optional binary geom (GEOMETRY);
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>}
+</code></pre></div>
+<h4 id="with-binary-wkb-format">With Binary (WKB format)</h4>
+<p>You can also store geometry data as Binary using Well-Known Binary format:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="kd">record</span> <span class="nc">LocationBinary</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="nd">@ParquetGeometry</span><span class="w"> </span><span class="n">Binary</span><span class="w"> </span><span class="n">geom</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<h4 id="with-coordinate-reference-system">With Coordinate Reference System</h4>
+<p>You can specify a coordinate reference system by providing a CRS identifier:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="kd">record</span> <span class="nc">LocationWithCRS</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="nd">@ParquetGeometry</span><span class="p">(</span><span class="s">&quot;EPSG:3857&quot;</span><span class="p">)</span><span class="w"> </span><span class="n">Geometry</span><span class="w"> </span><span class="n">geom</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>This information will be included in the Parquet schema metadata to inform readers about the CRS used.</p>
+<h3 id="parquetgeography-annotation">@ParquetGeography annotation</h3>
+<p>The <code>@ParquetGeography</code> annotation is used to specify that a field should be stored as a Parquet geography type for spherical coordinate systems. This annotation is suitable for geographic data that uses latitude/longitude coordinates on the Earth's surface.</p>
+<h4 id="with-jts-geometry_1">With JTS Geometry</h4>
+<p>The following record stores geographic data:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="kd">record</span> <span class="nc">WorldLocation</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="nd">@ParquetGeography</span><span class="w"> </span><span class="n">Geometry</span><span class="w"> </span><span class="n">location</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>This will be converted to a Parquet schema with a <code>binary</code> field annotated with the <code>GEOGRAPHY</code> logical type, and Carpet will serialize the Geometry object (any JTS Geometry) to WKB format:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>message WorldLocation {
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>  optional binary name (STRING);
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>  optional binary location (GEOGRAPHY);
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>}
+</code></pre></div>
+<h4 id="with-binary-wkb-format_1">With Binary (WKB format)</h4>
+<p>You can also store geography data as Binary using Well-Known Binary format:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="kd">record</span> <span class="nc">WorldLocationBinary</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="nd">@ParquetGeography</span><span class="w"> </span><span class="n">Binary</span><span class="w"> </span><span class="n">location</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<h4 id="with-configuration-options">With Configuration Options</h4>
+<p>The <code>@ParquetGeography</code> annotation supports additional configuration for precise geographic calculations:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="kd">record</span> <span class="nc">PreciseLocation</span><span class="p">(</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="w">    </span><span class="n">String</span><span class="w"> </span><span class="n">name</span><span class="p">,</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="w">    </span><span class="nd">@ParquetGeography</span><span class="p">(</span><span class="n">crs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;EPSG:4326&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">algorithm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">EdgeAlgorithm</span><span class="p">.</span><span class="na">VINCENTY</span><span class="p">)</span><span class="w"> </span><span class="n">Geometry</span><span class="w"> </span><span class="n">location</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+<p>This information will be included in the Parquet schema metadata to inform readers about the CRS and edge calculation algorithm used.</p>
+<h4 id="coordinate-reference-system-crs">Coordinate Reference System (CRS)</h4>
+<p>The <code>crs</code> parameter specifies the coordinate reference system, for example:</p>
+<ul>
+<li><code>"EPSG:4326"</code> - WGS 84 (World Geodetic System 1984) - most common for GPS coordinates</li>
+<li><code>"EPSG:3857"</code> - Web Mercator projection - commonly used in web mapping</li>
+<li><code>"OGC:CRS84"</code> - WGS 84 longitude/latitude order</li>
+<li><code>""</code> (empty) - uses default CRS</li>
+</ul>
+<h4 id="edge-interpolation-algorithms">Edge Interpolation Algorithms</h4>
+<p>The <code>algorithm</code> parameter determines how edges between geographic points are calculated:</p>
+<ul>
+<li><code>EdgeAlgorithm.SPHERICAL</code> - Fast spherical interpolation, assumes Earth is a perfect sphere</li>
+<li><code>EdgeAlgorithm.VINCENTY</code> - High accuracy geodesic calculations on ellipsoid</li>
+<li><code>EdgeAlgorithm.THOMAS</code> - Optimized version of Vincenty's formula, good balance of accuracy and performance</li>
+<li><code>EdgeAlgorithm.ANDOYER</code> - Fast approximation for short distances</li>
+<li><code>EdgeAlgorithm.KARNEY</code> - Most accurate geodesic calculations, computationally intensive</li>
+</ul>
+<h4 id="collection-support">Collection Support</h4>
+<p>Geospatial annotations can be applied to collection elements:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="kd">record</span> <span class="nc">MultiLocationRecord</span><span class="p">(</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="w">    </span><span class="n">String</span><span class="w"> </span><span class="n">name</span><span class="p">,</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="w">    </span><span class="n">List</span><span class="o">&lt;</span><span class="nd">@ParquetGeography</span><span class="w"> </span><span class="n">Geometry</span><span class="o">&gt;</span><span class="w"> </span><span class="n">locations</span><span class="p">,</span>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="w">    </span><span class="n">Map</span><span class="o">&lt;</span><span class="n">String</span><span class="p">,</span><span class="w"> </span><span class="nd">@ParquetGeometry</span><span class="w"> </span><span class="n">Binary</span><span class="o">&gt;</span><span class="w"> </span><span class="n">regions</span>
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../data-types/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Data Types">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Data Types
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../column-mapping/" class="md-footer__link md-footer__link--next" aria-label="Next: Column Mapping">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Column Mapping
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["navigation.sections", "navigation.expand", "navigation.path", "navigation.footer", "content.tabs.link", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+    
+  </body>
+</html>
