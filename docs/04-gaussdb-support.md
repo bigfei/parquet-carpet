@@ -67,7 +67,7 @@ String password = System.getenv("GAUSSDB_PASSWORD");
 try (Connection connection = DriverManager.getConnection(url, username, password)) {
     String sql = "SELECT * FROM employees WHERE department = 'Engineering'";
     File outputFile = new File("employees.parquet");
-    
+
     DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
 }
 ```
@@ -110,7 +110,7 @@ GRANT CREATE ON SCHEMA public TO your_username;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO your_username;
 
 -- Grant permissions on future tables
-ALTER DEFAULT PRIVILEGES IN SCHEMA public 
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
     GRANT ALL ON TABLES TO your_username;
 ```
 
@@ -277,11 +277,11 @@ try (Connection connection = DriverManager.getConnection(url, username, password
                  "FROM employees " +
                  "WHERE department = 'Engineering' " +
                  "ORDER BY employee_id";
-    
+
     File outputFile = new File("gaussdb_employees.parquet");
-    
+
     DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
-    
+
     System.out.println("✅ Export completed: " + outputFile.getAbsolutePath());
 }
 ```
@@ -292,15 +292,15 @@ try (Connection connection = DriverManager.getConnection(url, username, password
 try (Connection connection = DriverManager.getConnection(url, username, password)) {
     String sql = "SELECT * FROM large_table " +
                  "WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'";
-    
+
     File outputFile = new File("gaussdb_large_export.parquet");
-    
+
     DynamicExportConfig config = new DynamicExportConfig()
         .withBatchSize(5000)              // Process 5000 rows at a time
         .withFetchSize(1000)              // Fetch 1000 rows from database
         .withCompressionCodec(CompressionCodecName.GZIP)
         .withColumnNamingStrategy(ColumnNamingStrategy.SNAKE_CASE);
-    
+
     DynamicJdbcExporter.exportWithConfig(connection, sql, outputFile, config);
 }
 ```
@@ -310,7 +310,7 @@ try (Connection connection = DriverManager.getConnection(url, username, password
 ```java
 try (Connection connection = DriverManager.getConnection(url, username, password)) {
     String sql = """
-        SELECT 
+        SELECT
             d.department_name,
             d.location,
             COUNT(e.employee_id) as employee_count,
@@ -324,13 +324,13 @@ try (Connection connection = DriverManager.getConnection(url, username, password
         HAVING COUNT(e.employee_id) > 0
         ORDER BY employee_count DESC
         """;
-    
+
     File outputFile = new File("gaussdb_department_summary.parquet");
-    
+
     DynamicExportConfig config = new DynamicExportConfig()
         .withBatchSize(100)
         .withCompressionCodec(CompressionCodecName.GZIP);
-    
+
     DynamicJdbcExporter.exportWithConfig(connection, sql, outputFile, config);
 }
 ```
@@ -343,7 +343,7 @@ String[] tables = {"employees", "departments", "products"};
 for (String table : tables) {
     String sql = "SELECT * FROM " + table;
     File outputFile = new File("gaussdb_" + table + ".parquet");
-    
+
     DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
     System.out.println("✅ Exported: " + table);
 }

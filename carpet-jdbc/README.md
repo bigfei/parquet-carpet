@@ -308,7 +308,7 @@ Since GaussDB is PostgreSQL-compatible, it uses the same type mappings:
 
 ```java
 // GaussDB connection using environment variables
-String url = System.getenv().getOrDefault("GAUSSDB_URL", 
+String url = System.getenv().getOrDefault("GAUSSDB_URL",
     "jdbc:gaussdb://127.0.0.1:8889/sit_suncbs_coredb");
 String username = System.getenv("GAUSSDB_USERNAME");
 String password = System.getenv("GAUSSDB_PASSWORD");
@@ -316,12 +316,12 @@ String password = System.getenv("GAUSSDB_PASSWORD");
 try (Connection gaussConnection = DriverManager.getConnection(url, username, password)) {
     String sql = "SELECT employee_id, employee_name, department, salary, hire_date " +
                  "FROM employees WHERE department = 'Engineering'";
-    
+
     File outputFile = new File("gaussdb_employees.parquet");
-    
+
     // Simple export
     DynamicJdbcExporter.exportResultSetToParquet(gaussConnection, sql, outputFile);
-    
+
     System.out.println("GaussDB export completed successfully!");
 }
 ```
@@ -337,14 +337,14 @@ String password = System.getenv("GAUSSDB_PASSWORD");
 try (Connection connection = DriverManager.getConnection(url, username, password)) {
     String sql = "SELECT * FROM large_table WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'";
     File outputFile = new File("gaussdb_large_export.parquet");
-    
+
     // Configure for optimal performance
     DynamicExportConfig config = new DynamicExportConfig()
         .withBatchSize(5000)           // Larger batches for better performance
         .withFetchSize(1000)           // Optimize network roundtrips
         .withCompressionCodec(CompressionCodecName.GZIP)  // Better compression
         .withColumnNamingStrategy(ColumnNamingStrategy.SNAKE_CASE);
-    
+
     DynamicJdbcExporter.exportWithConfig(connection, sql, outputFile, config);
 }
 ```
@@ -373,7 +373,7 @@ export GAUSSDB_PASSWORD="your_password"
    -- Option 1: Grant permissions on public schema
    GRANT CREATE ON SCHEMA public TO your_username;
    GRANT USAGE ON SCHEMA public TO your_username;
-   
+
    -- Option 2: Create a dedicated test schema
    CREATE SCHEMA test_schema AUTHORIZATION your_username;
    -- Then modify GAUSSDB_URL to include the schema:

@@ -24,15 +24,15 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 
 /**
  * Example demonstrating how to use DynamicJdbcExporter with GaussDB.
- * 
+ *
  * This is not a test but an example showing various usage patterns.
- * 
+ *
  * To run this example:
  * 1. Set environment variables:
  *    export GAUSSDB_URL="jdbc:gaussdb://127.0.0.1:8889/sit_suncbs_coredb"
  *    export GAUSSDB_USERNAME="your_username"
  *    export GAUSSDB_PASSWORD="your_password"
- * 
+ *
  * 2. Run the main method
  */
 public class GaussDBExampleUsage {
@@ -52,7 +52,7 @@ public class GaussDBExampleUsage {
      * Example 1: Simple export from a single table
      */
     public static void simpleExport() {
-        String url = System.getenv().getOrDefault("GAUSSDB_URL", 
+        String url = System.getenv().getOrDefault("GAUSSDB_URL",
             "jdbc:gaussdb://127.0.0.1:8889/sit_suncbs_coredb");
         String username = System.getenv("GAUSSDB_USERNAME");
         String password = System.getenv("GAUSSDB_PASSWORD");
@@ -63,23 +63,23 @@ public class GaussDBExampleUsage {
         }
 
         try (Connection connection = DriverManager.getConnection(url, username, password)) {
-            
+
             // Simple SELECT query
             String sql = "SELECT employee_id, employee_name, department, salary, hire_date " +
                         "FROM employees " +
                         "WHERE department = 'Engineering' " +
                         "ORDER BY employee_id";
-            
+
             File outputFile = new File("gaussdb_employees_simple.parquet");
-            
+
             // Export to Parquet
             DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
-            
+
             System.out.println("✅ Simple export completed: " + outputFile.getAbsolutePath());
-            
+
             // Clean up
             outputFile.delete();
-            
+
         } catch (Exception e) {
             System.err.println("❌ Error during simple export: " + e.getMessage());
             e.printStackTrace();
@@ -90,7 +90,7 @@ public class GaussDBExampleUsage {
      * Example 2: Export with advanced configuration
      */
     public static void exportWithConfiguration() {
-        String url = System.getenv().getOrDefault("GAUSSDB_URL", 
+        String url = System.getenv().getOrDefault("GAUSSDB_URL",
             "jdbc:gaussdb://127.0.0.1:8889/sit_suncbs_coredb");
         String username = System.getenv("GAUSSDB_USERNAME");
         String password = System.getenv("GAUSSDB_PASSWORD");
@@ -101,7 +101,7 @@ public class GaussDBExampleUsage {
         }
 
         try (Connection connection = DriverManager.getConnection(url, username, password)) {
-            
+
             // Query with multiple data types
             String sql = "SELECT " +
                         "  id, " +
@@ -114,9 +114,9 @@ public class GaussDBExampleUsage {
                         "  updated_at " +
                         "FROM employees " +
                         "WHERE created_at >= CURRENT_DATE - INTERVAL '1 year'";
-            
+
             File outputFile = new File("gaussdb_employees_configured.parquet");
-            
+
             // Configure export settings
             DynamicExportConfig config = new DynamicExportConfig()
                 .withBatchSize(5000)              // Process 5000 rows at a time
@@ -124,15 +124,15 @@ public class GaussDBExampleUsage {
                 .withCompressionCodec(CompressionCodecName.SNAPPY)  // Use SNAPPY compression
                 .withColumnNamingStrategy(ColumnNamingStrategy.SNAKE_CASE)  // Convert to snake_case
                 .withConvertCamelCase(true);      // Convert camelCase columns
-            
+
             // Export with configuration
             DynamicJdbcExporter.exportWithConfig(connection, sql, outputFile, config);
-            
+
             System.out.println("✅ Configured export completed: " + outputFile.getAbsolutePath());
-            
+
             // Clean up
             outputFile.delete();
-            
+
         } catch (Exception e) {
             System.err.println("❌ Error during configured export: " + e.getMessage());
             e.printStackTrace();
@@ -143,7 +143,7 @@ public class GaussDBExampleUsage {
      * Example 3: Export complex query with JOINs and aggregations
      */
     public static void exportComplexQuery() {
-        String url = System.getenv().getOrDefault("GAUSSDB_URL", 
+        String url = System.getenv().getOrDefault("GAUSSDB_URL",
             "jdbc:gaussdb://127.0.0.1:8889/sit_suncbs_coredb");
         String username = System.getenv("GAUSSDB_USERNAME");
         String password = System.getenv("GAUSSDB_PASSWORD");
@@ -154,10 +154,10 @@ public class GaussDBExampleUsage {
         }
 
         try (Connection connection = DriverManager.getConnection(url, username, password)) {
-            
+
             // Complex query with JOINs and aggregations
             String sql = """
-                SELECT 
+                SELECT
                     d.department_name,
                     d.location,
                     COUNT(e.employee_id) as employee_count,
@@ -171,22 +171,22 @@ public class GaussDBExampleUsage {
                 HAVING COUNT(e.employee_id) > 0
                 ORDER BY employee_count DESC
                 """;
-            
+
             File outputFile = new File("gaussdb_department_summary.parquet");
-            
+
             // Configure for optimal performance with aggregated data
             DynamicExportConfig config = new DynamicExportConfig()
                 .withBatchSize(100)               // Smaller batch for aggregated results
                 .withCompressionCodec(CompressionCodecName.GZIP);  // Better compression for summary data
-            
+
             // Export
             DynamicJdbcExporter.exportWithConfig(connection, sql, outputFile, config);
-            
+
             System.out.println("✅ Complex query export completed: " + outputFile.getAbsolutePath());
-            
+
             // Clean up
             outputFile.delete();
-            
+
         } catch (Exception e) {
             System.err.println("❌ Error during complex query export: " + e.getMessage());
             e.printStackTrace();
