@@ -35,8 +35,8 @@ dependencies {
 test {
     useJUnitPlatform()
 
-    // Disable test result caching for development
-    // outputs.upToDateWhen { false }
+    // Disable test result caching for development - always run tests
+    outputs.upToDateWhen { false }
 
     // Show test results and container output in console
     testLogging {

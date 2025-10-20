@@ -77,9 +77,10 @@ class DynamicJdbcExporterGenericTest {
         File outputFile = tempDir.resolve("products.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
 
         // Then
+        assertEquals(3, totalRows, "Should export 3 rows");
         assertTrue(outputFile.exists(), "Parquet file should be created");
 
         // Verify we can read it back
@@ -108,9 +109,10 @@ class DynamicJdbcExporterGenericTest {
             .withConvertCamelCase(false);
 
         // When
-        DynamicJdbcExporter.exportWithConfig(connection, sql, outputFile, config);
+        long totalRows = DynamicJdbcExporter.exportWithConfig(connection, sql, outputFile, config);
 
         // Then
+        assertEquals(3, totalRows, "Should export 3 rows");
         assertTrue(outputFile.exists(), "Parquet file should be created");
 
         // Verify we can read it back
@@ -130,9 +132,10 @@ class DynamicJdbcExporterGenericTest {
         File outputFile = tempDir.resolve("empty.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
 
         // Then
+        assertEquals(0, totalRows, "Should export 0 rows");
         assertTrue(outputFile.exists(), "Parquet file should be created even for empty results");
 
         // Verify we can read it back (should be empty)
@@ -147,9 +150,10 @@ class DynamicJdbcExporterGenericTest {
         File outputFile = tempDir.resolve("category_summary.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
 
         // Then
+        assertEquals(2, totalRows, "Should export 2 rows");
         assertTrue(outputFile.exists(), "Parquet file should be created");
 
         // Verify we can read it back
@@ -205,9 +209,10 @@ class DynamicJdbcExporterGenericTest {
             .withFetchSize(100);
 
         // When
-        DynamicJdbcExporter.exportWithConfig(connection, sql, outputFile, config);
+        long totalRows = DynamicJdbcExporter.exportWithConfig(connection, sql, outputFile, config);
 
         // Then
+        assertEquals(1500, totalRows, "Should export 1500 rows");
         assertTrue(outputFile.exists(), "Parquet file should be created");
 
         // Verify we can read it back
@@ -225,9 +230,10 @@ class DynamicJdbcExporterGenericTest {
         File outputFile = tempDir.resolve("nullable_products.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
 
         // Then
+        assertEquals(3, totalRows, "Should export 3 rows");
         assertTrue(outputFile.exists(), "Parquet file should be created");
 
         // Verify we can read it back
@@ -251,9 +257,10 @@ class DynamicJdbcExporterGenericTest {
         File outputFile = tempDir.resolve("products_with_categories.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
 
         // Then
+        assertEquals(3, totalRows, "Should export 3 rows");
         assertTrue(outputFile.exists(), "Parquet file should be created");
 
         // Verify we can read it back

@@ -125,7 +125,8 @@ class DynamicJdbcExporterGaussDBTest {
         File outputFile = tempDir.resolve("gaussdb_employees.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        assertEquals(3, totalRows, "Should export 3 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");
@@ -153,7 +154,8 @@ class DynamicJdbcExporterGaussDBTest {
         File outputFile = tempDir.resolve("gaussdb_numeric.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        assertEquals(2, totalRows, "Should export 2 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");
@@ -181,7 +183,8 @@ class DynamicJdbcExporterGaussDBTest {
         File outputFile = tempDir.resolve("gaussdb_datetime.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        assertEquals(2, totalRows, "Should export 2 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");
@@ -206,7 +209,8 @@ class DynamicJdbcExporterGaussDBTest {
         File outputFile = tempDir.resolve("gaussdb_nulls.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        assertEquals(3, totalRows, "Should export 3 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");
@@ -239,7 +243,8 @@ class DynamicJdbcExporterGaussDBTest {
             .withColumnNamingStrategy(ColumnNamingStrategy.SNAKE_CASE);
 
         // When
-        DynamicJdbcExporter.exportWithConfig(connection, sql, outputFile, config);
+        long totalRows = DynamicJdbcExporter.exportWithConfig(connection, sql, outputFile, config);
+        assertEquals(3, totalRows, "Should export 3 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");
@@ -258,7 +263,8 @@ class DynamicJdbcExporterGaussDBTest {
         File outputFile = tempDir.resolve("gaussdb_text.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        assertEquals(2, totalRows, "Should export 2 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");
@@ -282,7 +288,8 @@ class DynamicJdbcExporterGaussDBTest {
         File outputFile = tempDir.resolve("gaussdb_empty.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        assertEquals(0, totalRows, "Should export 0 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created even for empty results");

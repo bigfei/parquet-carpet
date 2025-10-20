@@ -91,7 +91,8 @@ class DynamicJdbcExporterPostgreSQLTest {
         File outputFile = tempDir.resolve("postgresql_employees.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        assertEquals(3, totalRows, "Should export 3 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");
@@ -117,7 +118,8 @@ class DynamicJdbcExporterPostgreSQLTest {
         File outputFile = tempDir.resolve("postgresql_products.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        assertEquals(2, totalRows, "Should export 2 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");
@@ -140,7 +142,8 @@ class DynamicJdbcExporterPostgreSQLTest {
         File outputFile = tempDir.resolve("postgresql_arrays.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        assertEquals(2, totalRows, "Should export 2 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");
@@ -163,7 +166,8 @@ class DynamicJdbcExporterPostgreSQLTest {
         File outputFile = tempDir.resolve("postgresql_nulls.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        assertEquals(3, totalRows, "Should export 3 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");
@@ -195,7 +199,8 @@ class DynamicJdbcExporterPostgreSQLTest {
             .withFetchSize(100);
 
         // When
-        DynamicJdbcExporter.exportWithConfig(connection, sql, outputFile, config);
+        long totalRows = DynamicJdbcExporter.exportWithConfig(connection, sql, outputFile, config);
+        assertEquals(1000, totalRows, "Should export 1000 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");
@@ -251,7 +256,8 @@ class DynamicJdbcExporterPostgreSQLTest {
             .withConvertCamelCase(false);
 
         // When
-        DynamicJdbcExporter.exportWithConfig(connection, sql, outputFile, config);
+        long totalRows = DynamicJdbcExporter.exportWithConfig(connection, sql, outputFile, config);
+        assertEquals(3, totalRows, "Should export 3 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");

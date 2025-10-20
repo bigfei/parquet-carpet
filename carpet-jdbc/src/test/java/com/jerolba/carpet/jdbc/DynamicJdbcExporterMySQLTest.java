@@ -121,7 +121,8 @@ class DynamicJdbcExporterMySQLTest {
         File outputFile = tempDir.resolve("mysql_employees.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        assertEquals(3, totalRows, "Should export 3 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");
@@ -151,7 +152,8 @@ class DynamicJdbcExporterMySQLTest {
         File outputFile = tempDir.resolve("mysql_products.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        assertEquals(3, totalRows, "Should export 3 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");
@@ -176,7 +178,8 @@ class DynamicJdbcExporterMySQLTest {
         File outputFile = tempDir.resolve("mysql_tasks.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        assertEquals(3, totalRows, "Should export 3 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");
@@ -203,7 +206,8 @@ class DynamicJdbcExporterMySQLTest {
         File outputFile = tempDir.resolve("mysql_users.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        assertEquals(3, totalRows, "Should export 3 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");
@@ -228,7 +232,8 @@ class DynamicJdbcExporterMySQLTest {
         File outputFile = tempDir.resolve("mysql_temporal.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        assertEquals(2, totalRows, "Should export 2 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");
@@ -255,7 +260,8 @@ class DynamicJdbcExporterMySQLTest {
         File outputFile = tempDir.resolve("mysql_binary.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        assertEquals(2, totalRows, "Should export 2 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");
@@ -327,7 +333,8 @@ class DynamicJdbcExporterMySQLTest {
             .withConvertCamelCase(false);
 
         // When
-        DynamicJdbcExporter.exportWithConfig(connection, sql, outputFile, config);
+        long totalRows = DynamicJdbcExporter.exportWithConfig(connection, sql, outputFile, config);
+        assertEquals(3, totalRows, "Should export 3 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");
@@ -351,7 +358,8 @@ class DynamicJdbcExporterMySQLTest {
         File outputFile = tempDir.resolve("mysql_nullable.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        assertEquals(2, totalRows, "Should export 2 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");
@@ -379,7 +387,8 @@ class DynamicJdbcExporterMySQLTest {
         File outputFile = tempDir.resolve("mysql_charset.parquet").toFile();
 
         // When
-        DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        long totalRows = DynamicJdbcExporter.exportResultSetToParquet(connection, sql, outputFile);
+        assertEquals(2, totalRows, "Should export 2 rows");
 
         // Then
         assertTrue(outputFile.exists(), "Parquet file should be created");

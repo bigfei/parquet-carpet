@@ -27,10 +27,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Spliterator;
-import java.util.Spliterators;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import com.jerolba.carpet.CarpetWriter;
 import com.jerolba.carpet.WriteModelFactory;
@@ -48,8 +44,10 @@ public class DynamicJdbcExporter {
 
     /**
      * Export any JDBC ResultSet to Parquet without predefined record classes
+     *
+     * @return the total number of rows processed
      */
-    public static void exportResultSetToParquet(
+    public static long exportResultSetToParquet(
             Connection connection,
             String sqlQuery,
             File outputFile) throws SQLException, IOException {
@@ -67,20 +65,45 @@ public class DynamicJdbcExporter {
                     .withWriteRecordModel(modelFactory)
                     .build()) {
 
-                // Stream rows as Maps
-                Stream<Map> recordStream =
-                    resultSetToMapStream(resultSet);
+                // Count rows as we process them
+                long totalRows = 0;
+                ResultSetMetaData metaData = resultSet.getMetaData();
+                int columnCount = metaData.getColumnCount();
 
-                // Write all records
-                writer.write(recordStream);
+                List<Map> batch = new ArrayList<>(1000);
+                while (resultSet.next()) {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    for (int i = 1; i <= columnCount; i++) {
+                        String columnName = metaData.getColumnLabel(i);
+                        int sqlType = metaData.getColumnType(i);
+                        Object value = getResultSetValue(resultSet, i, sqlType);
+                        row.put(columnName, value);
+                    }
+                    batch.add(row);
+                    totalRows++;
+
+                    if (batch.size() >= 1000) {
+                        writer.write(batch);
+                        batch.clear();
+                    }
+                }
+
+                // Write remaining records
+                if (!batch.isEmpty()) {
+                    writer.write(batch);
+                }
+
+                return totalRows;
             }
         }
     }
 
     /**
      * Export with advanced configuration
+     *
+     * @return the total number of rows processed
      */
-    public static void exportWithConfig(
+    public static long exportWithConfig(
             Connection connection,
             String sqlQuery,
             File outputFile,
@@ -117,34 +140,25 @@ public class DynamicJdbcExporter {
                 }
 
                 try (CarpetWriter<Map> writer = builder.build()) {
-                    // Process in batches
-                    exportInBatches(resultSet, writer, config);
+                    // Process in batches and return count
+                    return exportInBatches(resultSet, writer, config);
                 }
             }
         }
     }
 
     /**
-     * Convert ResultSet to Stream of Maps
-     */
-    private static Stream<Map> resultSetToMapStream(ResultSet resultSet) {
-        try {
-            return StreamSupport.stream(new ResultSetMapSpliterator(resultSet), false);
-        } catch (SQLException e) {
-            throw new RuntimeException("Failed to create stream from ResultSet", e);
-        }
-    }
-
-    /**
      * Process ResultSet in batches for memory efficiency
+     *
+     * @return the total number of rows processed
      */
-    private static void exportInBatches(
+    private static long exportInBatches(
             ResultSet resultSet,
             CarpetWriter<Map> writer,
             DynamicExportConfig config) throws SQLException, IOException {
 
         List<Map> batch = new ArrayList<>(config.getBatchSize());
-        int totalRows = 0;
+        long totalRows = 0;
         ResultSetMetaData metaData = resultSet.getMetaData();
         int columnCount = metaData.getColumnCount();
 
@@ -170,6 +184,7 @@ public class DynamicJdbcExporter {
         }
 
         System.out.println("Export completed. Total rows: " + totalRows);
+        return totalRows;
     }
 
     /**
@@ -497,43 +512,4 @@ public class DynamicJdbcExporter {
         boolean nullable,
         boolean autoIncrement
     ) {}
-
-    /**
-     * ResultSet to Map Spliterator implementation
-     */
-    private static class ResultSetMapSpliterator extends Spliterators.AbstractSpliterator<Map> {
-        private final ResultSet resultSet;
-        private final ResultSetMetaData metaData;
-        private final int columnCount;
-
-        public ResultSetMapSpliterator(ResultSet resultSet) throws SQLException {
-            super(Long.MAX_VALUE, Spliterator.ORDERED | Spliterator.NONNULL);
-            this.resultSet = resultSet;
-            this.metaData = resultSet.getMetaData();
-            this.columnCount = metaData.getColumnCount();
-        }
-
-        @Override
-        public boolean tryAdvance(java.util.function.Consumer<? super Map> action) {
-            try {
-                if (!resultSet.next()) {
-                    return false;
-                }
-
-                Map<String, Object> row = new LinkedHashMap<>();
-                for (int i = 1; i <= columnCount; i++) {
-                    String columnName = metaData.getColumnLabel(i);
-                    int sqlType = metaData.getColumnType(i);
-                    Object value = getResultSetValue(resultSet, i, sqlType);
-                    row.put(columnName, value);
-                }
-
-                action.accept(row);
-                return true;
-
-            } catch (SQLException e) {
-                throw new RuntimeException("Error processing ResultSet row", e);
-            }
-        }
-    }
 }
