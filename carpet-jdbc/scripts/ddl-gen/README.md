@@ -24,7 +24,7 @@ python3 extract-ddl.py
 
 1. **Reads table list**: The script reads table names from `../table-list.txt`
 
-2. **Routes to correct source**: 
+2. **Routes to correct source**:
    - Tables starting with `kfa*` or `kgl*` → extracted from `acct_db.sql`
    - All other tables → extracted from `core_db.sql`
 
