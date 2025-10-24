@@ -120,7 +120,7 @@ if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
     # Input file and output directory
-    table_list_file = os.path.join(script_dir, "table-list.txt")
+    table_list_file = os.path.join(script_dir, "..", "table-list.txt")
     output_dir = script_dir
 
     # Check if input file exists
