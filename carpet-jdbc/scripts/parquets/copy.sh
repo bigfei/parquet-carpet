@@ -25,7 +25,7 @@ echo ""
 
 # Ensure the destination dir exists when DST is local path
 # (No-op for cloud remotes; safe to run either way)
-./rclone mkdir "$DST" >/dev/null 2>&1 || true
+rclone mkdir "$DST" >/dev/null 2>&1 || true
 
 # List all parquet files recursively, then flatten-copy each one into $DST.
 # - lsf: list files
@@ -46,3 +46,8 @@ echo ""
     --ignore-checksum \
     --size-only
 done
+
+echo ""
+echo "Creating SUCCESS.txt marker..."
+echo -n "" | ./rclone rcat -vv --s3-no-check-bucket "${DST}SUCCESS.txt"
+echo "Transfer complete!"
