@@ -36,8 +36,8 @@ test {
     useJUnitPlatform()
 
     // Increase heap size for large database exports
-    minHeapSize = "512m"
-    maxHeapSize = "2g"
+    minHeapSize = "1g"
+    maxHeapSize = "4g"
 
     // Disable test result caching for development - always run tests
     outputs.upToDateWhen { false }

@@ -173,6 +173,7 @@ public class DynamicJdbcExporter {
                 totalRows += config.getBatchSize();
                 if (totalRows % 10000 == 0) {
                     System.out.println("Processed " + totalRows + " rows");
+                    System.out.flush();
                 }
             }
         }
@@ -184,6 +185,7 @@ public class DynamicJdbcExporter {
         }
 
         System.out.println("Export completed. Total rows: " + totalRows);
+        System.out.flush();
         return totalRows;
     }
 
