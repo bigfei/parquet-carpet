@@ -31,6 +31,7 @@ import java.util.Map;
 import com.jerolba.carpet.CarpetWriter;
 import com.jerolba.carpet.WriteModelFactory;
 import com.jerolba.carpet.io.FileSystemOutputFile;
+import com.jerolba.carpet.io.OutputStreamOutputFile;
 import com.jerolba.carpet.model.FieldType;
 import com.jerolba.carpet.model.FieldTypes;
 import com.jerolba.carpet.model.WriteRecordModelType;
@@ -145,6 +146,243 @@ public class DynamicJdbcExporter {
                 }
             }
         }
+    }
+
+    /**
+     * Export with AWS KMS envelope encryption support.
+     *
+     * This method encrypts Parquet files on-the-fly using AWS KMS envelope encryption:
+     * 1. Generates a random data encryption key (DEK) for each file
+     * 2. Encrypts the Parquet data with the DEK using AES-256-GCM
+     * 3. Encrypts the DEK with AWS KMS
+     * 4. Stores the encrypted DEK in a companion .metadata file
+     *
+     * Prerequisites:
+     * - AWS SDK KMS library must be on classpath (software.amazon.awssdk:kms)
+     * - Valid AWS credentials configured (environment variables, IAM role, or credentials file)
+     * - KMS key must grant encrypt permission to the caller
+     *
+     * @param connection JDBC connection
+     * @param sqlQuery SQL query to execute
+     * @param outputFile Output file for encrypted Parquet data
+     * @param config Export configuration including KMS encryption settings
+     * @return the total number of rows processed
+     * @throws SQLException if database operation fails
+     * @throws IOException if file or encryption operations fail
+     * @throws IllegalStateException if KMS encryption is not properly configured
+     */
+    public static long exportWithKmsEncryption(
+            Connection connection,
+            String sqlQuery,
+            File outputFile,
+            DynamicExportConfig config) throws SQLException, IOException {
+
+        if (!config.isKmsEncryptionEnabled()) {
+            throw new IllegalStateException(
+                "KMS encryption not configured. Use config.withKmsEncryption() to enable encryption.");
+        }
+
+        try (PreparedStatement statement = connection.prepareStatement(
+                sqlQuery,
+                ResultSet.TYPE_FORWARD_ONLY,
+                ResultSet.CONCUR_READ_ONLY)) {
+
+            // Configure fetch size
+            if (config.getFetchSize() > 0) {
+                statement.setFetchSize(config.getFetchSize());
+            }
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                // Create dynamic WriteModelFactory based on ResultSet metadata
+                WriteModelFactory<Map> modelFactory = createDynamicModelFactory(resultSet.getMetaData());
+
+                // Create KMS encrypting output stream
+                KmsEnvelopeEncryptionOutputStream encryptingStream =
+                    new KmsEnvelopeEncryptionOutputStream(outputFile, config.getKmsEncryptionConfig());
+
+                try {
+                    // Create CarpetWriter with encrypting stream
+                    CarpetWriter.Builder<Map> builder =
+                        new CarpetWriter.Builder<>(
+                            new OutputStreamOutputFile(encryptingStream),
+                            Map.class)
+                        .withWriteRecordModel(modelFactory);
+
+                    // Apply configuration
+                    if (config.getCompressionCodec() != null) {
+                        builder.withCompressionCodec(config.getCompressionCodec());
+                    }
+
+                    if (config.getColumnNamingStrategy() != null) {
+                        builder.withColumnNamingStrategy(config.getColumnNamingStrategy());
+                    }
+
+                    try (CarpetWriter<Map> writer = builder.build()) {
+                        // Process in batches and return count
+                        long totalRows = exportInBatches(resultSet, writer, config);
+
+                        System.out.println("KMS encryption metadata saved to: " +
+                            encryptingStream.getMetadataFile().getAbsolutePath());
+                        System.out.flush();
+
+                        return totalRows;
+                    }
+                } finally {
+                    encryptingStream.close();
+                }
+            }
+        }
+    }
+
+    /**
+     * Export with AWS KMS encryption using a shared DEK context.
+     *
+     * This method is optimized for batch exports where multiple files are created.
+     * It reuses a single Data Encryption Key (DEK) across all exports, making only
+     * ONE KMS API call instead of one per file. Each file still gets a unique IV
+     * for security.
+     *
+     * Use this when exporting multiple tables/queries in a batch operation.
+     *
+     * @param connection JDBC connection
+     * @param sqlQuery SQL query to execute
+     * @param outputFile Output file for encrypted Parquet data
+     * @param config Export configuration
+     * @param sharedContext Shared encryption context with pre-encrypted DEK
+     * @return the total number of rows processed
+     * @throws SQLException if database operation fails
+     * @throws IOException if file or encryption operations fail
+     */
+    public static long exportWithSharedKmsEncryption(
+            Connection connection,
+            String sqlQuery,
+            File outputFile,
+            DynamicExportConfig config,
+            KmsSharedKeyEncryptionContext sharedContext) throws SQLException, IOException {
+
+        try (PreparedStatement statement = connection.prepareStatement(
+                sqlQuery,
+                ResultSet.TYPE_FORWARD_ONLY,
+                ResultSet.CONCUR_READ_ONLY)) {
+
+            // Configure fetch size
+            if (config.getFetchSize() > 0) {
+                statement.setFetchSize(config.getFetchSize());
+            }
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                // Create dynamic WriteModelFactory based on ResultSet metadata
+                WriteModelFactory<Map> modelFactory = createDynamicModelFactory(resultSet.getMetaData());
+
+                // Create KMS encrypting output stream with shared DEK (no KMS call!)
+                KmsEnvelopeEncryptionOutputStream encryptingStream =
+                    new KmsEnvelopeEncryptionOutputStream(outputFile, sharedContext);
+
+                try {
+                    // Create CarpetWriter with encrypting stream
+                    CarpetWriter.Builder<Map> builder =
+                        new CarpetWriter.Builder<>(
+                            new OutputStreamOutputFile(encryptingStream),
+                            Map.class)
+                        .withWriteRecordModel(modelFactory);
+
+                    // Apply configuration
+                    if (config.getCompressionCodec() != null) {
+                        builder.withCompressionCodec(config.getCompressionCodec());
+                    }
+
+                    if (config.getColumnNamingStrategy() != null) {
+                        builder.withColumnNamingStrategy(config.getColumnNamingStrategy());
+                    }
+
+                    try (CarpetWriter<Map> writer = builder.build()) {
+                        // Process in batches and return count
+                        return exportInBatches(resultSet, writer, config);
+                    }
+                } finally {
+                    encryptingStream.close();
+                }
+            }
+        }
+    }
+
+    /**
+     * Export multiple tables/queries with KMS encryption using a shared DEK.
+     *
+     * This method creates a single DEK and reuses it across all exports, making
+     * only ONE KMS API call for the entire batch. This is significantly more
+     * efficient than calling exportWithKmsEncryption() multiple times.
+     *
+     * Example:
+     * <pre>
+     * Map&lt;String, String&gt; queries = Map.of(
+     *     "customers", "SELECT * FROM customers",
+     *     "orders", "SELECT * FROM orders"
+     * );
+     * exportBatchWithKmsEncryption(connection, queries, outputDir, config);
+     * </pre>
+     *
+     * @param connection JDBC connection
+     * @param tableQueries Map of filename (without extension) to SQL query
+     * @param outputDirectory Directory for output files
+     * @param config Export configuration including KMS encryption settings
+     * @return Map of table name to row count
+     * @throws SQLException if database operation fails
+     * @throws IOException if file or encryption operations fail
+     * @throws IllegalStateException if KMS encryption is not properly configured
+     */
+    public static java.util.Map<String, Long> exportBatchWithKmsEncryption(
+            Connection connection,
+            java.util.Map<String, String> tableQueries,
+            File outputDirectory,
+            DynamicExportConfig config) throws SQLException, IOException {
+
+        if (!config.isKmsEncryptionEnabled()) {
+            throw new IllegalStateException(
+                "KMS encryption not configured. Use config.withKmsEncryption() to enable encryption.");
+        }
+
+        if (!outputDirectory.exists() && !outputDirectory.mkdirs()) {
+            throw new IOException("Failed to create output directory: " + outputDirectory);
+        }
+
+        java.util.Map<String, Long> results = new java.util.LinkedHashMap<>();
+
+        // Create shared encryption context - this makes ONE KMS call for the entire batch
+        try (KmsSharedKeyEncryptionContext sharedContext =
+                new KmsSharedKeyEncryptionContext(config.getKmsEncryptionConfig())) {
+
+            System.out.println("=== Batch KMS Encryption (1 KMS call for " + tableQueries.size() + " tables) ===");
+            System.out.flush();
+
+            for (var entry : tableQueries.entrySet()) {
+                String tableName = entry.getKey();
+                String query = entry.getValue();
+                File outputFile = new File(outputDirectory, tableName + ".parquet");
+
+                System.out.println("Exporting " + tableName + "...");
+                System.out.flush();
+
+                long rowCount = exportWithSharedKmsEncryption(
+                    connection,
+                    query,
+                    outputFile,
+                    config,
+                    sharedContext
+                );
+
+                results.put(tableName, rowCount);
+                System.out.println("  ✓ " + tableName + ": " + rowCount + " rows");
+                System.out.flush();
+            }
+
+            System.out.println("=== Batch export complete: " + results.size() + " tables ===");
+            System.out.flush();
+        } catch (Exception e) {
+            throw new IOException("Failed to export batch with KMS encryption", e);
+        }
+
+        return results;
     }
 
     /**

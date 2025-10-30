@@ -28,6 +28,7 @@ public class DynamicExportConfig {
     private ColumnNamingStrategy columnNamingStrategy = ColumnNamingStrategy.SNAKE_CASE;
     private boolean convertCamelCase = true;
     private boolean includeSchemaInfo = false;
+    private KmsEncryptionConfig kmsEncryptionConfig;
 
     /**
      * Default constructor with sensible defaults
@@ -173,5 +174,34 @@ public class DynamicExportConfig {
     public DynamicExportConfig withIncludeSchemaInfo(boolean includeSchemaInfo) {
         setIncludeSchemaInfo(includeSchemaInfo);
         return this;
+    }
+
+    /**
+     * Get the KMS encryption configuration
+     */
+    public KmsEncryptionConfig getKmsEncryptionConfig() {
+        return kmsEncryptionConfig;
+    }
+
+    /**
+     * Set the KMS encryption configuration for envelope encryption
+     */
+    public void setKmsEncryptionConfig(KmsEncryptionConfig kmsEncryptionConfig) {
+        this.kmsEncryptionConfig = kmsEncryptionConfig;
+    }
+
+    /**
+     * Enable KMS envelope encryption and return this instance for chaining
+     */
+    public DynamicExportConfig withKmsEncryption(KmsEncryptionConfig kmsEncryptionConfig) {
+        setKmsEncryptionConfig(kmsEncryptionConfig);
+        return this;
+    }
+
+    /**
+     * Check if KMS encryption is enabled
+     */
+    public boolean isKmsEncryptionEnabled() {
+        return kmsEncryptionConfig != null;
     }
 }

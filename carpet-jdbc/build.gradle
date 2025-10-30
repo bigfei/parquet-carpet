@@ -19,6 +19,11 @@ repositories {
 
 dependencies {
     implementation project(':carpet-record')
+
+    // AWS SDK for KMS encryption (optional dependency)
+    implementation "software.amazon.awssdk:kms:2.20.0"
+    implementation "software.amazon.awssdk:s3:2.20.0"
+
     testImplementation "org.mongodb:bson:5.4.0"
     testImplementation "org.duckdb:duckdb_jdbc:1.1.3"
     testImplementation "org.postgresql:postgresql:42.7.3"
