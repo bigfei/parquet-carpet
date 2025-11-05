@@ -122,6 +122,9 @@ buildNumber.properties
 # Parquet files (test outputs)
 *.parquet
 
+# KMS encryption test output
+carpet-jdbc/encrypted/
+
 # Documentation build
 site/
 docs/_build/

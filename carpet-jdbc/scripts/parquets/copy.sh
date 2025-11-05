@@ -16,6 +16,9 @@ DATE="$1"
 SRC_BASE="${SRC_BASE:-huawei_obs_uat:/uat-sunline-obs/6666/report/}"
 DST_BASE="${DST_BASE:-cbs_s3:/etl-sunline-mastertables/raw/corebanking/}"
 
+AWS_ACCOUNT_ID="431312751623"
+AWS_KMS_KEY_ID="e6df0452-a104-4bc2-ae99-385abd703578"
+
 SRC="${SRC_BASE}${DATE}/"
 DST="${DST_BASE}${DATE}/"
 
@@ -33,7 +36,7 @@ rclone mkdir "$DST" >/dev/null 2>&1 || true
 # - --files-only: files only
 # - --include "*.parquet": filter parquet files
 # - copyto: allows specifying an exact destination object name (i.e., no subdirs)
-./rclone lsf -R --files-only --include "*.parquet" "$SRC" | while IFS= read -r f; do
+./rclone lsf -R --files-only --include "*.parquet" --include "*.parquet.metadata" "$SRC" | while IFS= read -r f; do
   base="$(basename "$f")"
   echo "Copying: $f -> ${DST}${base}"
   ./rclone copyto "$SRC$f" "${DST}${base}" \
@@ -44,6 +47,8 @@ rclone mkdir "$DST" >/dev/null 2>&1 || true
     --s3-no-check-bucket \
     --s3-upload-cutoff 0 \
     --ignore-checksum \
+    --s3-server-side-encryption aws:kms \
+    --s3-sse-kms-key-id arn:aws:kms:ap-southeast-1:${AWS_ACCOUNT_ID}:key/${AWS_KMS_KEY_ID} \
     --size-only
 done
 
