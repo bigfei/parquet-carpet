@@ -54,5 +54,5 @@ done
 
 echo ""
 echo "Creating SUCCESS.txt marker..."
-echo -n "" | ./rclone rcat -vv --s3-no-check-bucket "${DST}SUCCESS.txt"
+echo -n "" | ./rclone rcat -vv --s3-no-check-bucket  --s3-server-side-encryption aws:kms  --s3-sse-kms-key-id arn:aws:kms:ap-southeast-1:${AWS_ACCOUNT_ID}:key/${AWS_KMS_KEY_ID} "${DST}SUCCESS.txt"
 echo "Transfer complete!"
