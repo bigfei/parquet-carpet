@@ -395,21 +395,60 @@ public class DynamicJdbcExporter {
             CarpetWriter<Map> writer,
             DynamicExportConfig config) throws SQLException, IOException {
 
+        if (config.isUseMetadataCaching()) {
+            return exportInBatchesWithCaching(resultSet, writer, config);
+        } else {
+            return exportInBatchesWithoutCaching(resultSet, writer, config);
+        }
+    }
+
+    /**
+     * Export with metadata caching optimization (default behavior)
+     */
+    private static long exportInBatchesWithCaching(
+            ResultSet resultSet,
+            CarpetWriter<Map> writer,
+            DynamicExportConfig config) throws SQLException, IOException {
+
         List<Map> batch = new ArrayList<>(config.getBatchSize());
         long totalRows = 0;
         ResultSetMetaData metaData = resultSet.getMetaData();
         int columnCount = metaData.getColumnCount();
 
+        // Pre-compute column metadata to avoid repeated lookups (performance optimization)
+        ColumnMetadata[] columnMetadata = new ColumnMetadata[columnCount];
+        for (int i = 0; i < columnCount; i++) {
+            int colIdx = i + 1; // JDBC is 1-indexed
+            String columnName = metaData.getColumnLabel(colIdx);
+
+            // Apply column naming strategy once
+            if (config.isConvertCamelCase()) {
+                columnName = camelToSnake(columnName);
+            }
+
+            int sqlType = metaData.getColumnType(colIdx);
+            columnMetadata[i] = new ColumnMetadata(columnName, sqlType);
+        }
+
+        // Process rows with pre-computed metadata
         while (resultSet.next()) {
-            Map row = convertRowToMap(resultSet, metaData, columnCount, config);
+            Map<String, Object> row = new LinkedHashMap<>(columnCount);
+
+            for (int i = 0; i < columnCount; i++) {
+                ColumnMetadata col = columnMetadata[i];
+                Object value = getResultSetValue(resultSet, i + 1, col.sqlType);
+                row.put(col.name, value);
+            }
+
             batch.add(row);
 
             if (batch.size() >= config.getBatchSize()) {
                 writer.write(batch);
+                totalRows += batch.size();
                 batch.clear();
 
-                totalRows += config.getBatchSize();
-                if (totalRows % 10000 == 0) {
+                // Reduce logging frequency for better performance
+                if (totalRows % 100000 == 0) {
                     System.out.println("Processed " + totalRows + " rows");
                     System.out.flush();
                 }
@@ -428,29 +467,77 @@ public class DynamicJdbcExporter {
     }
 
     /**
-     * Convert ResultSet row to Map<String, Object>
+     * Export without metadata caching (for performance comparison/benchmarking only)
+     * This simulates the old behavior with repeated metadata lookups per row
      */
-    private static Map convertRowToMap(
-            ResultSet resultSet, ResultSetMetaData metaData,
-            int columnCount, DynamicExportConfig config) throws SQLException {
+    private static long exportInBatchesWithoutCaching(
+            ResultSet resultSet,
+            CarpetWriter<Map> writer,
+            DynamicExportConfig config) throws SQLException, IOException {
 
-        Map<String, Object> row = new LinkedHashMap<>();
+        List<Map> batch = new ArrayList<>(config.getBatchSize());
+        long totalRows = 0;
+        ResultSetMetaData metaData = resultSet.getMetaData();
+        int columnCount = metaData.getColumnCount();
 
-        for (int i = 1; i <= columnCount; i++) {
-            String columnName = metaData.getColumnLabel(i);
-            int sqlType = metaData.getColumnType(i);
+        // Process rows WITHOUT pre-computed metadata (old behavior)
+        while (resultSet.next()) {
+            Map<String, Object> row = new LinkedHashMap<>(columnCount);
 
-            // Apply column naming strategy
-            if (config.isConvertCamelCase()) {
-                columnName = camelToSnake(columnName);
+            for (int i = 1; i <= columnCount; i++) {
+                // Repeated metadata lookups (expensive!)
+                String columnName = metaData.getColumnLabel(i);
+                int sqlType = metaData.getColumnType(i);
+
+                // Apply column naming strategy per row (expensive!)
+                if (config.isConvertCamelCase()) {
+                    columnName = camelToSnake(columnName);
+                }
+
+                Object value = getResultSetValue(resultSet, i, sqlType);
+                row.put(columnName, value);
             }
 
-            Object value = getResultSetValue(resultSet, i, sqlType);
-            row.put(columnName, value);
+            batch.add(row);
+
+            if (batch.size() >= config.getBatchSize()) {
+                writer.write(batch);
+                totalRows += batch.size();
+                batch.clear();
+
+                // Reduce logging frequency for better performance
+                if (totalRows % 100000 == 0) {
+                    System.out.println("Processed " + totalRows + " rows");
+                    System.out.flush();
+                }
+            }
         }
 
-        return row;
+        // Write remaining records
+        if (!batch.isEmpty()) {
+            writer.write(batch);
+            totalRows += batch.size();
+        }
+
+        System.out.println("Export completed. Total rows: " + totalRows);
+        System.out.flush();
+        return totalRows;
     }
+
+    /**
+     * Helper class to cache column metadata for performance optimization
+     */
+    private static class ColumnMetadata {
+        final String name;
+        final int sqlType;
+
+        ColumnMetadata(String name, int sqlType) {
+            this.name = name;
+            this.sqlType = sqlType;
+        }
+    }
+
+
 
     /**
      * Get typed value from ResultSet

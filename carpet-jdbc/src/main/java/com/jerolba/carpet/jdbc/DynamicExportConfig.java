@@ -22,12 +22,13 @@ import com.jerolba.carpet.ColumnNamingStrategy;
  * Configuration class for dynamic JDBC to Parquet export operations.
  */
 public class DynamicExportConfig {
-    private int batchSize = 1000;
-    private int fetchSize = 1000;
+    private int batchSize = 10000;
+    private int fetchSize = 10000;
     private CompressionCodecName compressionCodec = CompressionCodecName.SNAPPY;
     private ColumnNamingStrategy columnNamingStrategy = ColumnNamingStrategy.SNAKE_CASE;
     private boolean convertCamelCase = true;
     private boolean includeSchemaInfo = false;
+    private boolean useMetadataCaching = true;  // Performance optimization toggle
     private KmsEncryptionConfig kmsEncryptionConfig;
 
     /**
@@ -105,6 +106,23 @@ public class DynamicExportConfig {
      */
     public void setConvertCamelCase(boolean convertCamelCase) {
         this.convertCamelCase = convertCamelCase;
+    }
+
+    /**
+     * Check if metadata caching is enabled (performance optimization)
+     */
+    public boolean isUseMetadataCaching() {
+        return useMetadataCaching;
+    }
+
+    /**
+     * Enable or disable metadata caching optimization (default: true)
+     * When enabled, column metadata is cached before processing rows, eliminating
+     * repeated calls to getColumnLabel(), getColumnType(), and naming conversions.
+     * Disabling this is only useful for performance benchmarking.
+     */
+    public void setUseMetadataCaching(boolean useMetadataCaching) {
+        this.useMetadataCaching = useMetadataCaching;
     }
 
     /**
