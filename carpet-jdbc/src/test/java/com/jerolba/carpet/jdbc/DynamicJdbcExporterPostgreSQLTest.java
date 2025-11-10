@@ -281,30 +281,30 @@ class DynamicJdbcExporterPostgreSQLTest {
         // Comprehensive warmup phase
         System.out.println("🔥 Warming up PostgreSQL database...");
         System.out.println("   This ensures shared_buffers, OS cache, and query plans are hot");
-        
+
         // Run ANALYZE to update statistics
         try (var stmt = connection.createStatement()) {
             stmt.execute("ANALYZE performance_test");
             System.out.println("   ✓ ANALYZE completed - statistics updated");
         }
-        
+
         // Warmup runs - execute query multiple times to warm up all caches
         DynamicExportConfig warmupConfig = new DynamicExportConfig();
         warmupConfig.setBatchSize(10000);
         warmupConfig.setFetchSize(10000);
-        
+
         System.out.println("   Running warmup iterations...");
         for (int i = 1; i <= 3; i++) {
             File warmupFile = tempDir.resolve("warmup_" + i + ".parquet").toFile();
             long warmupStart = System.currentTimeMillis();
             DynamicJdbcExporter.exportWithConfig(connection, sql, warmupFile, warmupConfig);
             long warmupDuration = System.currentTimeMillis() - warmupStart;
-            System.out.printf("   Iteration %d: %,d ms (%,d rows/sec)%n", 
+            System.out.printf("   Iteration %d: %,d ms (%,d rows/sec)%n",
                 i, warmupDuration, (1000000L * 1000) / warmupDuration);
         }
-        
+
         System.out.println("   ✓ Database fully warmed up - starting actual performance tests\n");
-        
+
         // Small delay to let things settle
         try {
             Thread.sleep(1000);
