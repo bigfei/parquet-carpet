@@ -33,6 +33,7 @@ public class KmsEncryptionConfig {
     private String algorithm = "AES/GCM/NoPadding";
     private int keySize = 256;
     private String awsRegion;
+    private String kmsEndpointUrl;
 
     /**
      * Default constructor
@@ -189,6 +190,45 @@ public class KmsEncryptionConfig {
      */
     public KmsEncryptionConfig withAwsRegion(String awsRegion) {
         setAwsRegion(awsRegion);
+        return this;
+    }
+
+    /**
+     * Get the KMS VPC endpoint URL for PrivateLink access.
+     *
+     * When configured, all KMS API calls will be routed through the VPC endpoint
+     * instead of the public KMS endpoint, ensuring traffic stays within the VPC.
+     *
+     * @return the VPC endpoint URL (e.g., "https://vpce-1234567890abcdef0-abcdef01.kms.us-east-1.vpce.amazonaws.com")
+     */
+    public String getKmsEndpointUrl() {
+        return kmsEndpointUrl;
+    }
+
+    /**
+     * Set the KMS VPC endpoint URL for PrivateLink access.
+     *
+     * Use this to route KMS API calls through a VPC endpoint for security compliance.
+     * The endpoint URL is typically in the format:
+     * https://vpce-{id}.kms.{region}.vpce.amazonaws.com
+     *
+     * @param kmsEndpointUrl the VPC endpoint URL for KMS
+     */
+    public void setKmsEndpointUrl(String kmsEndpointUrl) {
+        this.kmsEndpointUrl = kmsEndpointUrl;
+    }
+
+    /**
+     * Set KMS VPC endpoint URL and return this instance for chaining.
+     *
+     * Use this to route KMS API calls through a VPC endpoint (PrivateLink)
+     * for security compliance, ensuring traffic does not traverse the public internet.
+     *
+     * @param kmsEndpointUrl the VPC endpoint URL (e.g., "https://vpce-xxx.kms.us-east-1.vpce.amazonaws.com")
+     * @return this instance for method chaining
+     */
+    public KmsEncryptionConfig withKmsEndpointUrl(String kmsEndpointUrl) {
+        setKmsEndpointUrl(kmsEndpointUrl);
         return this;
     }
 

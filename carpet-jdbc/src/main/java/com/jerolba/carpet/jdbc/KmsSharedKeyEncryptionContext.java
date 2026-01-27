@@ -87,6 +87,11 @@ public class KmsSharedKeyEncryptionContext implements AutoCloseable {
             builder.region(Region.of(config.getAwsRegion()));
         }
 
+        // Use VPC endpoint URL if configured for PrivateLink access
+        if (config.getKmsEndpointUrl() != null && !config.getKmsEndpointUrl().isEmpty()) {
+            builder.endpointOverride(java.net.URI.create(config.getKmsEndpointUrl()));
+        }
+
         return builder.build();
     }
 
