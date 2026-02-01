@@ -17,6 +17,7 @@ package com.jerolba.carpet.jdbc;
 
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import com.jerolba.carpet.ColumnNamingStrategy;
+import java.time.ZoneId;
 
 /**
  * Configuration class for dynamic JDBC to Parquet export operations.
@@ -30,6 +31,8 @@ public class DynamicExportConfig {
     private boolean includeSchemaInfo = false;
     private boolean useMetadataCaching = true;  // Performance optimization toggle
     private KmsEncryptionConfig kmsEncryptionConfig;
+    private int threadPoolSize = 0;
+    private ZoneId outputTimeZone = ZoneId.systemDefault();
 
     /**
      * Default constructor with sensible defaults
@@ -221,5 +224,34 @@ public class DynamicExportConfig {
      */
     public boolean isKmsEncryptionEnabled() {
         return kmsEncryptionConfig != null;
+    }
+
+    public int getThreadPoolSize() {
+        return threadPoolSize;
+    }
+
+    public void setThreadPoolSize(int threadPoolSize) {
+        this.threadPoolSize = threadPoolSize;
+    }
+
+    public DynamicExportConfig withThreadPoolSize(int threadPoolSize) {
+        setThreadPoolSize(threadPoolSize);
+        return this;
+    }
+
+    public ZoneId getOutputTimeZone() {
+        return outputTimeZone;
+    }
+
+    public void setOutputTimeZone(ZoneId outputTimeZone) {
+        if (outputTimeZone == null) {
+            throw new IllegalArgumentException("outputTimeZone cannot be null");
+        }
+        this.outputTimeZone = outputTimeZone;
+    }
+
+    public DynamicExportConfig withOutputTimeZone(ZoneId outputTimeZone) {
+        setOutputTimeZone(outputTimeZone);
+        return this;
     }
 }
