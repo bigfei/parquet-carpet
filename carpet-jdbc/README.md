@@ -450,6 +450,73 @@ The `DynamicExportConfig` class provides these configuration options:
 - **columnNamingStrategy**: Strategy for column name conversion (default: SNAKE_CASE)
 - **convertCamelCase**: Whether to convert camelCase to snake_case (default: true)
 
+## AWS KMS Encryption
+
+The module supports AWS KMS envelope encryption for Parquet files. This provides secure at-rest encryption using AWS Key Management Service.
+
+### Basic KMS Encryption
+
+```java
+KmsEncryptionConfig kmsConfig = KmsEncryptionConfig.builder()
+    .withKmsKeyId("arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012")
+    .withAwsRegion("us-east-1")
+    .withEncryptionContextEntry("table", "customers");
+
+DynamicExportConfig config = new DynamicExportConfig()
+    .withBatchSize(1000)
+    .withKmsEncryption(kmsConfig);
+
+DynamicJdbcExporter.exportWithKmsEncryption(connection, sql, outputFile, config);
+```
+
+### Using AWS Profiles
+
+To use a specific profile from `~/.aws/credentials`, configure the `awsProfile` option:
+
+```java
+KmsEncryptionConfig kmsConfig = KmsEncryptionConfig.builder()
+    .withKmsKeyId("arn:aws:kms:ap-southeast-1:123456789012:key/your-key-id")
+    .withAwsRegion("ap-southeast-1")
+    .withAwsProfile("uat2")  // Use [uat2] section from ~/.aws/credentials
+    .withEncryptionContextEntry("environment", "uat");
+```
+
+This is useful when:
+- Running locally with multiple AWS accounts
+- Testing with different credential sets
+- CI/CD environments with named profiles
+
+If `awsProfile` is not set, the default AWS credential provider chain is used.
+
+### KMS Configuration Options
+
+The `KmsEncryptionConfig` class provides:
+
+| Option | Description |
+|--------|-------------|
+| `kmsKeyId` | AWS KMS key ID, ARN, or alias (required) |
+| `awsRegion` | AWS region for KMS operations |
+| `awsProfile` | AWS profile name from `~/.aws/credentials` |
+| `kmsEndpointUrl` | VPC endpoint URL for PrivateLink access |
+| `encryptionContext` | Additional authenticated data for KMS |
+| `keySize` | DEK key size: 128 or 256 bits (default: 256) |
+
+### Running KMS Tests
+
+Configure `src/test/resources/test.properties`:
+
+```properties
+aws.kms.keyId=arn:aws:kms:ap-southeast-1:123456789012:key/your-key-id
+aws.kms.region=ap-southeast-1
+aws.profile=uat2
+```
+
+Run the tests:
+
+```bash
+./gradlew :carpet-jdbc:test --tests KmsEncryptionTest
+```
+
 ## Error Handling
 
 The exporter handles common issues:
@@ -467,7 +534,255 @@ The exporter handles common issues:
 4. **Filter data early**: Use WHERE clauses to reduce the amount of data exported
 5. **Use column projections**: Select only the columns you need
 
-## Schema Analysis
+## Multi-Table Parallel Export CLI
+
+The `DynamicJdbcExportCli` provides a command-line interface for exporting multiple database tables to Parquet files in parallel.
+
+### Building the Executable JAR
+
+**Requirements:**
+- Java 17 or higher
+- Gradle (included via wrapper)
+
+**Two JAR options are available:**
+
+#### Option 1: Lightweight JAR (without JDBC drivers)
+
+```bash
+./gradlew :carpet-jdbc:fatJar
+```
+
+Creates `carpet-jdbc-0.5.0-all.jar` (~42MB) containing:
+- All runtime dependencies (Parquet, Hadoop, AWS SDK, etc.)
+- **No JDBC drivers** - you must provide your own driver JAR
+
+Use this when:
+- You already have JDBC drivers in your classpath
+- You want a smaller download size
+- You need a specific driver version
+
+```bash
+# Run with external JDBC driver
+java -cp "carpet-jdbc-0.5.0-all.jar:postgresql-42.7.3.jar" \
+  com.jerolba.carpet.jdbc.cli.DynamicJdbcExportCli \
+  --properties export.properties \
+  --tables tables.txt
+```
+
+#### Option 2: Full JAR (with JDBC drivers) - Recommended
+
+```bash
+./gradlew :carpet-jdbc:fatJarWithDrivers
+```
+
+Creates `carpet-jdbc-0.5.0-full.jar` (~131MB) containing:
+- All runtime dependencies (Parquet, Hadoop, AWS SDK, etc.)
+- **Bundled JDBC drivers** (no additional JAR files needed):
+  - PostgreSQL (`postgresql-42.7.3.jar`)
+  - MySQL (`mysql-connector-j-8.0.33.jar`)
+  - SQLite (`sqlite-jdbc-3.45.1.0.jar`)
+  - DuckDB (`duckdb_jdbc-1.1.3.jar`)
+  - GaussDB (`gaussdbjdbc-506.0.0.b058.jar`)
+
+**No additional JDBC driver downloads required** - ready to connect to any supported database.
+
+```bash
+# Run directly - batteries included
+java -jar carpet-jdbc-0.5.0-full.jar \
+  --properties export.properties \
+  --tables tables.txt
+
+# Export all user tables (no tables file)
+java -jar carpet-jdbc-0.5.0-full.jar \
+  --properties export.properties
+```
+
+#### Build Both JARs
+
+```bash
+./gradlew :carpet-jdbc:build
+```
+
+This creates both JAR variants in `carpet-jdbc/build/libs/`.
+
+### CLI Usage
+
+```bash
+# Using full JAR (recommended)
+java -jar carpet-jdbc-0.5.0-full.jar \
+  --properties export.properties \
+  --tables tables.txt
+
+# Export all user tables (no tables file)
+java -jar carpet-jdbc-0.5.0-full.jar \
+  --properties export.properties
+```
+
+**Required Arguments:**
+- `--properties <file>`: Path to the properties configuration file
+
+**Optional Arguments:**
+- `--tables <file>`: Path to the table list file (one table name per line). If omitted, all user tables are exported.
+- `--help`: Display usage information
+
+### Properties File Format
+
+Create a `.properties` file with the following configuration:
+
+```properties
+# Required: JDBC connection settings
+jdbc.url=jdbc:postgresql://localhost:5432/mydb
+jdbc.user=myuser
+jdbc.password=secret
+
+# Required: Output directory
+output.baseDir=output
+
+# Optional: Export configuration
+export.queryPattern=SELECT * FROM %s
+export.batchSize=1000
+export.fetchSize=1000
+export.compression=SNAPPY
+export.namingStrategy=SNAKE_CASE
+export.convertCamelCase=true
+export.includeSchemaInfo=true
+
+# Optional: AWS KMS encryption
+aws.kms.keyId=arn:aws:kms:ap-southeast-1:123456789012:key/your-key-id
+aws.kms.region=ap-southeast-1
+aws.profile=uat2
+aws.kms.endpointUrl=https://vpce-xxxx.kms.ap-southeast-1.vpce.amazonaws.com
+```
+
+**Property Reference:**
+
+| Property | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `jdbc.url` | Yes | - | JDBC connection URL |
+| `jdbc.user` | Yes | - | Database username |
+| `jdbc.password` | Yes | - | Database password |
+| `output.baseDir` | Yes | - | Base directory for Parquet files |
+| `export.queryPattern` | No | `SELECT * FROM %s` | SQL query pattern (%s = table name) |
+| `export.batchSize` | No | 1000 | Records per batch |
+| `export.fetchSize` | No | 1000 | JDBC fetch size |
+| `export.compression` | No | SNAPPY | Compression codec (UNCOMPRESSED, SNAPPY, GZIP, LZO, BROTLI, LZ4, ZSTD) |
+| `export.namingStrategy` | No | SNAKE_CASE | Column naming strategy (FIELD_NAME, SNAKE_CASE) |
+| `export.convertCamelCase` | No | true | Convert camelCase to snake_case |
+| `export.includeSchemaInfo` | No | true | Include Parquet schema metadata |
+| `aws.kms.keyId` | No | - | AWS KMS key ID or ARN for encryption |
+| `aws.kms.region` | No | - | AWS region for KMS operations |
+| `aws.profile` | No | - | AWS profile from ~/.aws/credentials |
+| `aws.kms.endpointUrl` | No | - | Custom KMS endpoint URL |
+
+### Table List File Format
+
+Create a text file with one table name per line:
+
+```
+# Database tables to export
+employees
+departments
+projects
+
+# Comments are ignored (lines starting with #)
+customers
+orders
+```
+
+- One table name per line
+- Empty lines are ignored
+- Lines starting with `#` are treated as comments
+- Duplicate table names are automatically deduplicated with a warning
+
+If `--tables` is not provided, the CLI discovers tables using JDBC metadata (`DatabaseMetaData.getTables`) and exports all user tables (system schemas like `pg_*`, `information_schema`, `mysql`, `performance_schema`, `sqlite_*` are filtered out). Schema-qualified names are used when available.
+
+### Output Structure
+
+Exported files are organized by date:
+
+```
+output/
+└── 20260128/          # yyyyMMdd format (system default timezone)
+    ├── employees.parquet
+    ├── departments.parquet
+    ├── projects.parquet
+    ├── customers.parquet
+    └── orders.parquet
+```
+
+With KMS encryption enabled, metadata sidecars are also created:
+
+```
+output/
+└── 20260128/
+    ├── employees.parquet
+    ├── employees.parquet.metadata
+    ├── departments.parquet
+    └── departments.parquet.metadata
+```
+
+### Parallel Export Behavior
+
+- **Thread Pool**: Uses `max(1, CPU_count - 1)` threads
+- **Fail-Fast**: Stops on first error, cancels remaining tasks
+- **Cleanup**: Automatically removes failed table outputs
+- **Logging**: Progress updates via SLF4J (exported X/Y tables, rows/sec)
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success - all tables exported |
+| 1 | Export failure - one or more tables failed |
+| 2 | Validation error - invalid arguments or configuration |
+
+### Complete Example
+
+**1. Create `export.properties`:**
+
+```properties
+jdbc.url=jdbc:postgresql://localhost:5432/production
+jdbc.user=etl_user
+jdbc.password=etl_password
+output.baseDir=/data/exports
+
+export.queryPattern=SELECT * FROM %s WHERE archived = false
+export.batchSize=5000
+export.fetchSize=1000
+export.compression=GZIP
+export.namingStrategy=SNAKE_CASE
+
+aws.kms.keyId=arn:aws:kms:us-east-1:123456789012:key/abc-123
+aws.kms.region=us-east-1
+aws.profile=production
+```
+
+**2. Create `tables.txt` (optional):**
+
+```
+users
+transactions
+audit_logs
+```
+
+**3. Run export:**
+
+```bash
+java -cp carpet-jdbc.jar com.jerolba.carpet.jdbc.cli.DynamicJdbcExportCli \
+  --properties export.properties \
+  --tables tables.txt
+```
+
+**4. Sample output:**
+
+```
+Exported 1/3 tables, 15000 rows, 7500 rows/sec
+Exported 2/3 tables, 28000 rows, 9333 rows/sec
+Exported 3/3 tables, 35000 rows, 8750 rows/sec
+Export completed in 4.2 seconds. Total rows: 35000, Average throughput: 8333 rows/sec
+```
+
+### Schema Analysis
 
 You can analyze the schema of any JDBC query:
 

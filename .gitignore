@@ -166,3 +166,6 @@ TEST-*.xml
 # Custom project files
 sqls/*.sql.bak
 *.orig
+
+# Export configuration files (contains sensitive data)
+carpet-jdbc/scripts/export-gaussdb/export.properties
