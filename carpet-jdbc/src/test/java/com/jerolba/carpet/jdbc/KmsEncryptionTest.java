@@ -65,6 +65,7 @@ class KmsEncryptionTest {
     private Connection connection;
     private String kmsKeyId;
     private String awsRegion;
+    private String awsProfile;
     private Path outputDir;
 
     @BeforeEach
@@ -78,6 +79,7 @@ class KmsEncryptionTest {
         Properties props = loadTestProperties();
         kmsKeyId = props.getProperty("aws.kms.keyId");
         awsRegion = props.getProperty("aws.kms.region", "us-east-1");
+        awsProfile = props.getProperty("aws.profile");
 
         // Skip tests if KMS key not configured
         assumeTrue(kmsKeyId != null && !kmsKeyId.isEmpty(),
@@ -109,6 +111,7 @@ class KmsEncryptionTest {
         KmsEncryptionConfig kmsConfig = KmsEncryptionConfig.builder()
             .withKmsKeyId(kmsKeyId)
             .withAwsRegion(awsRegion)
+            .withAwsProfile(awsProfile)
             .withEncryptionContextEntry("test", "single-file")
             .withEncryptionContextEntry("table", "customers");
 
@@ -154,6 +157,7 @@ class KmsEncryptionTest {
         KmsEncryptionConfig kmsConfig = KmsEncryptionConfig.builder()
             .withKmsKeyId(kmsKeyId)
             .withAwsRegion(awsRegion)
+            .withAwsProfile(awsProfile)
             .withEncryptionContextEntry("test", "batch-encryption")
             .withEncryptionContextEntry("batch_id", "test-batch-001");
 
@@ -208,6 +212,7 @@ class KmsEncryptionTest {
         KmsEncryptionConfig kmsConfig = KmsEncryptionConfig.builder()
             .withKmsKeyId(kmsKeyId)
             .withAwsRegion(awsRegion)
+            .withAwsProfile(awsProfile)
             .withEncryptionContextEntry("test", "manual-context");
 
         DynamicExportConfig config = new DynamicExportConfig()
@@ -267,6 +272,7 @@ class KmsEncryptionTest {
             KmsEncryptionConfig kmsConfig = KmsEncryptionConfig.builder()
                 .withKmsKeyId(kmsKeyId)
                 .withAwsRegion(awsRegion)
+                .withAwsProfile(awsProfile)
                 .withEncryptionContextEntry("tenant", tenant)
                 .withEncryptionContextEntry("test", "multi-tenant");
 

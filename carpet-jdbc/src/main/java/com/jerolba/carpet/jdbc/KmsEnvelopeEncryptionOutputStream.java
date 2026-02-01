@@ -29,6 +29,10 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.kms.model.DecryptRequest;
@@ -52,6 +56,7 @@ import software.amazon.awssdk.services.kms.model.GenerateDataKeyResponse;
  */
 public class KmsEnvelopeEncryptionOutputStream extends OutputStream {
 
+    private static final Logger logger = LoggerFactory.getLogger(KmsEnvelopeEncryptionOutputStream.class);
     private static final int GCM_IV_LENGTH = 12; // 96 bits
     private static final int GCM_TAG_LENGTH = 128; // 128 bits
 
@@ -82,6 +87,7 @@ public class KmsEnvelopeEncryptionOutputStream extends OutputStream {
         this.kmsClient = createKmsClient(config);
         this.ownedKmsClient = true;
 
+        StreamBundle streams = null;
         try {
             // Generate DEK using KMS (plaintext never sent to AWS)
             GenerateDataKeyResponse response = generateDataKeyWithKms(config);
@@ -97,21 +103,20 @@ public class KmsEnvelopeEncryptionOutputStream extends OutputStream {
             // Generate random IV for GCM mode (unique per file)
             this.iv = generateIV();
 
-            // Create cipher for AES-GCM encryption
             Cipher cipher = createCipher(dataKey, iv);
 
-            // Create encrypted output stream
-            FileOutputStream fileOutputStream = new FileOutputStream(outputFile);
-            this.cipherOutputStream = new CipherOutputStream(fileOutputStream, cipher);
+            streams = openStreams(outputFile, cipher);
+            this.cipherOutputStream = streams.cipherOutputStream;
+            this.metadataOutputStream = streams.metadataOutputStream;
+            this.metadataFile = streams.metadataFile;
 
-            // Create metadata file for storing encrypted DEK
-            this.metadataFile = new File(outputFile.getAbsolutePath() + ".metadata");
-            this.metadataOutputStream = new FileOutputStream(metadataFile);
-
-            // Write metadata
             writeEncryptedMetadata();
 
         } catch (Exception e) {
+            if (streams != null) {
+                closeQuietly(streams.metadataOutputStream);
+                closeQuietly(streams.cipherOutputStream);
+            }
             cleanup();
             throw new IOException("Failed to initialize KMS envelope encryption", e);
         }
@@ -134,6 +139,7 @@ public class KmsEnvelopeEncryptionOutputStream extends OutputStream {
         this.kmsClient = null;  // No KMS client needed
         this.ownedKmsClient = false;
 
+        StreamBundle streams = null;
         try {
             // Reuse the shared DEK (no new generation needed)
             this.dataKey = sharedContext.getDataKey();
@@ -144,21 +150,20 @@ public class KmsEnvelopeEncryptionOutputStream extends OutputStream {
             // Reuse the pre-encrypted DEK (no KMS call needed)
             this.encryptedDataKeyBase64 = sharedContext.getEncryptedDataKeyBase64();
 
-            // Create cipher for AES-GCM encryption
             Cipher cipher = createCipher(dataKey, iv);
 
-            // Create encrypted output stream
-            FileOutputStream fileOutputStream = new FileOutputStream(outputFile);
-            this.cipherOutputStream = new CipherOutputStream(fileOutputStream, cipher);
+            streams = openStreams(outputFile, cipher);
+            this.cipherOutputStream = streams.cipherOutputStream;
+            this.metadataOutputStream = streams.metadataOutputStream;
+            this.metadataFile = streams.metadataFile;
 
-            // Create metadata file for storing encrypted DEK
-            this.metadataFile = new File(outputFile.getAbsolutePath() + ".metadata");
-            this.metadataOutputStream = new FileOutputStream(metadataFile);
-
-            // Write metadata
             writeEncryptedMetadata();
 
         } catch (Exception e) {
+            if (streams != null) {
+                closeQuietly(streams.metadataOutputStream);
+                closeQuietly(streams.cipherOutputStream);
+            }
             cleanup();
             throw new IOException("Failed to initialize KMS envelope encryption with shared key", e);
         }
@@ -172,6 +177,10 @@ public class KmsEnvelopeEncryptionOutputStream extends OutputStream {
 
         if (config.getAwsRegion() != null) {
             builder.region(Region.of(config.getAwsRegion()));
+        }
+
+        if (config.getAwsProfile() != null && !config.getAwsProfile().isEmpty()) {
+            builder.credentialsProvider(ProfileCredentialsProvider.create(config.getAwsProfile()));
         }
 
         // Use VPC endpoint URL if configured for PrivateLink access
@@ -257,10 +266,11 @@ public class KmsEnvelopeEncryptionOutputStream extends OutputStream {
             metadata.append("}\n");
 
             metadataOutputStream.write(metadata.toString().getBytes(StandardCharsets.UTF_8));
-            metadataOutputStream.close();
 
         } catch (Exception e) {
             throw new IOException("Failed to encrypt data key with KMS", e);
+        } finally {
+            closeQuietly(metadataOutputStream);
         }
     }
 
@@ -307,6 +317,46 @@ public class KmsEnvelopeEncryptionOutputStream extends OutputStream {
             } catch (Exception e) {
                 // Ignore cleanup errors
             }
+        }
+    }
+
+    private static void closeQuietly(OutputStream stream) {
+        if (stream != null) {
+            try {
+                stream.close();
+            } catch (IOException e) {
+                logger.debug("Failed to close stream", e);
+            }
+        }
+    }
+
+    private static StreamBundle openStreams(File outputFile, Cipher cipher) throws IOException {
+        FileOutputStream dataStream = null;
+        CipherOutputStream cipherStream = null;
+        FileOutputStream metadataStream = null;
+        File metadataFile = new File(outputFile.getAbsolutePath() + ".metadata");
+        try {
+            dataStream = new FileOutputStream(outputFile);
+            cipherStream = new CipherOutputStream(dataStream, cipher);
+            metadataStream = new FileOutputStream(metadataFile);
+            return new StreamBundle(cipherStream, metadataStream, metadataFile);
+        } catch (IOException e) {
+            closeQuietly(metadataStream);
+            closeQuietly(cipherStream);
+            closeQuietly(dataStream);
+            throw e;
+        }
+    }
+
+    private static final class StreamBundle {
+        private final CipherOutputStream cipherOutputStream;
+        private final FileOutputStream metadataOutputStream;
+        private final File metadataFile;
+
+        private StreamBundle(CipherOutputStream cipherOutputStream, FileOutputStream metadataOutputStream, File metadataFile) {
+            this.cipherOutputStream = cipherOutputStream;
+            this.metadataOutputStream = metadataOutputStream;
+            this.metadataFile = metadataFile;
         }
     }
 
@@ -361,6 +411,9 @@ public class KmsEnvelopeEncryptionOutputStream extends OutputStream {
             var builder = KmsClient.builder();
             if (config.getAwsRegion() != null) {
                 builder.region(Region.of(config.getAwsRegion()));
+            }
+            if (config.getAwsProfile() != null && !config.getAwsProfile().isEmpty()) {
+                builder.credentialsProvider(ProfileCredentialsProvider.create(config.getAwsProfile()));
             }
             kmsClient = builder.build();
 

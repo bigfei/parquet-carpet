@@ -19,6 +19,7 @@ import java.util.Base64;
 
 import javax.crypto.SecretKey;
 
+import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.kms.model.GenerateDataKeyRequest;
@@ -85,6 +86,10 @@ public class KmsSharedKeyEncryptionContext implements AutoCloseable {
 
         if (config.getAwsRegion() != null) {
             builder.region(Region.of(config.getAwsRegion()));
+        }
+
+        if (config.getAwsProfile() != null && !config.getAwsProfile().isEmpty()) {
+            builder.credentialsProvider(ProfileCredentialsProvider.create(config.getAwsProfile()));
         }
 
         // Use VPC endpoint URL if configured for PrivateLink access

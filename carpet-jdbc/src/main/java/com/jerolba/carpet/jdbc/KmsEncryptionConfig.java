@@ -33,6 +33,7 @@ public class KmsEncryptionConfig {
     private String algorithm = "AES/GCM/NoPadding";
     private int keySize = 256;
     private String awsRegion;
+    private String awsProfile;
     private String kmsEndpointUrl;
 
     /**
@@ -190,6 +191,44 @@ public class KmsEncryptionConfig {
      */
     public KmsEncryptionConfig withAwsRegion(String awsRegion) {
         setAwsRegion(awsRegion);
+        return this;
+    }
+
+    /**
+     * Get the AWS profile name for credentials lookup.
+     *
+     * When configured, the SDK will use the specified profile from ~/.aws/credentials
+     * instead of the default credential provider chain.
+     *
+     * @return the AWS profile name (e.g., "uat2", "production")
+     */
+    public String getAwsProfile() {
+        return awsProfile;
+    }
+
+    /**
+     * Set the AWS profile name for credentials lookup.
+     *
+     * Use this to specify which profile from ~/.aws/credentials to use for
+     * AWS authentication. If not set, the default credential provider chain is used.
+     *
+     * @param awsProfile the profile name (e.g., "uat2", "production")
+     */
+    public void setAwsProfile(String awsProfile) {
+        this.awsProfile = awsProfile;
+    }
+
+    /**
+     * Set AWS profile and return this instance for chaining.
+     *
+     * Use this to specify which profile from ~/.aws/credentials to use for
+     * AWS authentication.
+     *
+     * @param awsProfile the profile name (e.g., "uat2", "production")
+     * @return this instance for method chaining
+     */
+    public KmsEncryptionConfig withAwsProfile(String awsProfile) {
+        setAwsProfile(awsProfile);
         return this;
     }
 
