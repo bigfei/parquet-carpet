@@ -1,0 +1,14 @@
+# =============================================================================
+# Table List for Database Export
+# =============================================================================
+# One table name per line. Empty lines and lines starting with # are ignored.
+# Usage: ./export.sh --properties export.properties --tables tables.txt
+# =============================================================================
+
+# Example tables (uncomment and customize):
+# employees
+# departments
+# projects
+# customers
+# orders
+# products

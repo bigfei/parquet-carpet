@@ -1,0 +1,27 @@
+# =============================================================================
+# GaussDB Table List for Export
+# =============================================================================
+# One table name per line. Empty lines and lines starting with # are ignored.
+# These are core banking system tables from uat_suncbs_coredb
+# =============================================================================
+
+# Core banking tables (uncomment tables you want to export):
+# customers
+# accounts
+# transactions
+# loans
+# deposits
+# withdrawals
+# transfers
+# account_balances
+# customer_profiles
+# loan_applications
+# deposit_accounts
+# transaction_history
+# account_statements
+# customer_accounts
+# product_catalog
+# interest_rates
+# fee_structures
+# audit_logs
+# system_configs
