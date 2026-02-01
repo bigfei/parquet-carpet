@@ -23,10 +23,22 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
+import java.util.regex.Pattern;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.jerolba.carpet.CarpetWriter;
 import com.jerolba.carpet.WriteModelFactory;
@@ -42,6 +54,197 @@ import com.jerolba.carpet.model.WriteRecordModelType;
  * from ResultSet metadata.
  */
 public class DynamicJdbcExporter {
+
+    private static final Logger logger = LoggerFactory.getLogger(DynamicJdbcExporter.class);
+
+    /**
+     * Export multiple tables in parallel to date-based output folder.
+     *
+     * This method exports multiple tables concurrently using a fixed thread pool.
+     * Each table is exported to a separate Parquet file under a date-based folder
+     * (yyyyMMdd format using the configured output timezone).
+     *
+     * Fail-fast behavior: If any table export fails, all remaining tasks are cancelled,
+     * the executor shuts down, and the failed table's output file (including .metadata
+     * sidecar if KMS enabled) is deleted. No partial results are returned.
+     *
+     * Thread pool size: configurable, default max(1, availableProcessors - 1) capped by table count
+     *
+     * @param tableNames List of table names to export
+     * @param queryPattern SQL query pattern with %s placeholder for table name (e.g., "SELECT * FROM %s")
+     * @param outputBaseDir Base directory for output (date folder will be created inside)
+     * @param config Export configuration (compression, KMS encryption, etc.)
+     * @param connectionSupplier Supplier for JDBC connections (one per thread, not shared)
+     * @return Map of table names to row counts on success
+     * @throws IOException if any export fails (no partial results)
+     * @throws IllegalArgumentException if queryPattern doesn't contain %s
+     */
+    public static Map<String, Long> exportParallelWithConfig(
+            List<String> tableNames,
+            String queryPattern,
+            File outputBaseDir,
+            DynamicExportConfig config,
+            Supplier<Connection> connectionSupplier) throws IOException {
+
+        if (!queryPattern.contains("%s")) {
+            logger.warn("Query pattern validation failed: pattern must contain %s placeholder");
+            throw new IllegalArgumentException("Query pattern must contain %s placeholder for table name");
+        }
+
+        String dateFolder = LocalDate.now(config.getOutputTimeZone()).format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        File outputDir = new File(outputBaseDir, dateFolder);
+        if (!outputDir.exists() && !outputDir.mkdirs()) {
+            throw new IOException("Failed to create output directory: " + outputDir);
+        }
+
+        for (String tableName : tableNames) {
+            validateTableName(tableName);
+        }
+
+        int numThreads = resolveThreadCount(tableNames.size(), config.getThreadPoolSize());
+        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+
+        logger.info("Starting parallel export of {} tables using {} threads", tableNames.size(), numThreads);
+        long exportStartTime = System.currentTimeMillis();
+
+        Map<String, Long> results = new LinkedHashMap<>();
+        List<Future<TableExportResult>> futures = new ArrayList<>();
+        long totalRows = 0;
+        int completedTables = 0;
+
+        try {
+            for (String tableName : tableNames) {
+                Callable<TableExportResult> task = () -> {
+                    Connection connection = connectionSupplier.get();
+                    try {
+                        String sanitizedName = tableName.replace("/", "_").replace("\\", "_");
+                        File outputFile = new File(outputDir, sanitizedName + ".parquet");
+
+                        String query = String.format(queryPattern, tableName);
+
+                        long startTime = System.currentTimeMillis();
+
+                        long rowCount;
+                        if (config.getKmsEncryptionConfig() != null) {
+                            rowCount = exportWithKmsEncryption(connection, query, outputFile, config);
+                        } else {
+                            rowCount = exportWithConfig(connection, query, outputFile, config);
+                        }
+
+                        long duration = System.currentTimeMillis() - startTime;
+
+                        return new TableExportResult(tableName, rowCount, outputFile, null);
+                    } catch (Exception e) {
+                        logger.error("Failed to export table: {} - {}", tableName, e.getMessage(), e);
+                        String sanitizedName = tableName.replace("/", "_").replace("\\", "_");
+                        File outputFile = new File(outputDir, sanitizedName + ".parquet");
+                        return new TableExportResult(tableName, 0L, outputFile, e);
+                    } finally {
+                        try {
+                            connection.close();
+                        } catch (SQLException e) {
+                            logger.warn("Error closing connection for table: {}", tableName, e);
+                        }
+                    }
+                };
+
+                futures.add(executor.submit(task));
+            }
+
+            for (Future<TableExportResult> future : futures) {
+                TableExportResult result = future.get();
+
+                if (result.error != null) {
+                    logger.error("Export failed for table: {}, cancelling remaining tasks", result.tableName);
+
+                    executor.shutdownNow();
+                    try {
+                        executor.awaitTermination(60, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+
+                    deleteIfExists(result.outputFile);
+                    deleteIfExists(new File(result.outputFile.getAbsolutePath() + ".metadata"));
+
+                    throw new IOException("Failed to export table: " + result.tableName, result.error);
+                }
+
+                results.put(result.tableName, result.rowCount);
+                totalRows += result.rowCount;
+                completedTables++;
+
+                // Log progress after each table completion
+                long elapsedMs = System.currentTimeMillis() - exportStartTime;
+                double throughput = (totalRows * 1000.0) / elapsedMs;
+                logger.info("Exported {}/{} tables, {} rows, {} rows/sec",
+                    completedTables, tableNames.size(), totalRows, (long)throughput);
+            }
+
+            long totalDuration = System.currentTimeMillis() - exportStartTime;
+            double finalThroughput = (totalRows * 1000.0) / totalDuration;
+            logger.info("Parallel export completed successfully: {} tables, {} rows in {} ms ({} rows/sec)",
+                results.size(), totalRows, totalDuration, (long)finalThroughput);
+            return results;
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.error("Export interrupted", e);
+            throw new IOException("Export interrupted", e);
+        } catch (Exception e) {
+            logger.error("Parallel export failed: {}", e.getMessage(), e);
+            throw new IOException("Parallel export failed", e);
+        } finally {
+            executor.shutdown();
+            try {
+                if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
+                    executor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                executor.shutdownNow();
+            }
+        }
+    }
+
+    /**
+     * Helper class to hold export results
+     */
+    private static class TableExportResult {
+        final String tableName;
+        final long rowCount;
+        final File outputFile;
+        final Exception error;
+
+        TableExportResult(String tableName, long rowCount, File outputFile, Exception error) {
+            this.tableName = tableName;
+            this.rowCount = rowCount;
+            this.outputFile = outputFile;
+            this.error = error;
+        }
+    }
+
+    private static final Pattern SAFE_TABLE_NAME = Pattern.compile("[A-Za-z0-9_$.]+", Pattern.CASE_INSENSITIVE);
+
+    private static void validateTableName(String tableName) {
+        if (tableName == null || tableName.isBlank() || !SAFE_TABLE_NAME.matcher(tableName).matches()) {
+            throw new IllegalArgumentException("Invalid table name: " + tableName);
+        }
+    }
+
+    private static int resolveThreadCount(int tableCount, int configuredThreads) {
+        if (configuredThreads > 0) {
+            return configuredThreads;
+        }
+        int defaultThreads = Math.max(1, Runtime.getRuntime().availableProcessors() - 1);
+        return Math.max(1, Math.min(tableCount, defaultThreads));
+    }
+
+    private static void deleteIfExists(File file) {
+        if (file.exists() && !file.delete()) {
+            logger.warn("Failed to delete file: {}", file);
+        }
+    }
 
     /**
      * Export any JDBC ResultSet to Parquet without predefined record classes
