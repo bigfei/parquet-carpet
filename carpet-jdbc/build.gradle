@@ -17,19 +17,45 @@ repositories {
     mavenCentral()
 }
 
+// Custom configuration for JDBC drivers (separate from main dependencies)
+configurations {
+    jdbcDrivers
+}
+
+// JDBC driver versions
+ext {
+    duckdbVersion = '1.1.3'
+    postgresqlVersion = '42.7.3'
+    mysqlVersion = '8.0.33'
+    sqliteVersion = '3.45.1.0'
+    gaussdbVersion = '506.0.0.b058'
+}
+
 dependencies {
     implementation project(':carpet-record')
+
+    // SLF4J logging API
+    implementation "org.slf4j:slf4j-api:2.0.13"
+    runtimeOnly "org.slf4j:slf4j-simple:2.0.13"
 
     // AWS SDK for KMS encryption (optional dependency)
     implementation "software.amazon.awssdk:kms:2.20.0"
     implementation "software.amazon.awssdk:s3:2.20.0"
 
+    // JDBC drivers - in separate configuration for optional bundling
+    jdbcDrivers "org.duckdb:duckdb_jdbc:${duckdbVersion}"
+    jdbcDrivers "org.postgresql:postgresql:${postgresqlVersion}"
+    jdbcDrivers "com.mysql:mysql-connector-j:${mysqlVersion}"
+    jdbcDrivers "org.xerial:sqlite-jdbc:${sqliteVersion}"
+    jdbcDrivers "com.huaweicloud.gaussdb:gaussdbjdbc:${gaussdbVersion}"
+
+    // Test dependencies - JDBC drivers declared explicitly
+    testImplementation "org.duckdb:duckdb_jdbc:${duckdbVersion}"
+    testImplementation "org.postgresql:postgresql:${postgresqlVersion}"
+    testImplementation "com.mysql:mysql-connector-j:${mysqlVersion}"
+    testImplementation "org.xerial:sqlite-jdbc:${sqliteVersion}"
+    testImplementation "com.huaweicloud.gaussdb:gaussdbjdbc:${gaussdbVersion}"
     testImplementation "org.mongodb:bson:5.4.0"
-    testImplementation "org.duckdb:duckdb_jdbc:1.1.3"
-    testImplementation "org.postgresql:postgresql:42.7.3"
-    testImplementation "com.mysql:mysql-connector-j:8.0.33"
-    testImplementation "org.xerial:sqlite-jdbc:3.45.1.0"
-    testImplementation "com.huaweicloud.gaussdb:gaussdbjdbc:506.0.0.b058"
     testImplementation "org.testcontainers:junit-jupiter:1.19.7"
     testImplementation "org.testcontainers:postgresql:1.19.7"
     testImplementation "org.testcontainers:mysql:1.19.7"
@@ -81,4 +107,58 @@ test {
 // Make jar task depend on sourcesJar
 jar {
     dependsOn sourcesJar
+}
+
+// Create fat JAR WITHOUT JDBC drivers (lightweight ~42MB)
+task fatJar(type: Jar) {
+    archiveClassifier.set('all')
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    
+    manifest {
+        attributes(
+            'Main-Class': 'com.jerolba.carpet.jdbc.cli.DynamicJdbcExportCli',
+            'Implementation-Version': project.version,
+            'Multi-Release': 'true'
+        )
+    }
+    
+    // Include all runtime dependencies (excludes jdbcDrivers configuration)
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    
+    // Include compiled classes from this project
+    with jar
+}
+
+// Create fat JAR WITH JDBC drivers (batteries-included ~131MB)
+task fatJarWithDrivers(type: Jar) {
+    archiveClassifier.set('full')
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    
+    manifest {
+        attributes(
+            'Main-Class': 'com.jerolba.carpet.jdbc.cli.DynamicJdbcExportCli',
+            'Implementation-Version': project.version,
+            'Multi-Release': 'true'
+        )
+    }
+    
+    // Include all runtime dependencies
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    
+    // Include JDBC drivers
+    from {
+        configurations.jdbcDrivers.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    
+    // Include compiled classes from this project
+    with jar
+}
+
+// Make build task create both fat JARs
+build {
+    dependsOn fatJar, fatJarWithDrivers
 }
