@@ -21,6 +21,10 @@
 # AWS Region (optional, defaults to us-east-1)
 # aws.kms.region=us-east-1
 
+# AWS Profile (optional, uses default credential chain if not set)
+# Specify a profile from ~/.aws/credentials to use specific credentials
+# aws.profile=uat2
+
 # ========================================
 # Setup Instructions
 # ========================================
