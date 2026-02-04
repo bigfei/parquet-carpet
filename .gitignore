@@ -124,6 +124,7 @@ buildNumber.properties
 
 # KMS encryption test output
 carpet-jdbc/encrypted/
+carpet-jdbc/src/test/resources/test.properties
 
 # Documentation build
 site/
