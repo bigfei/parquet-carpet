@@ -29,6 +29,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -38,8 +39,12 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
@@ -66,6 +71,10 @@ import java.util.Set;
  * export.namingStrategy=SNAKE_CASE
  * export.convertCamelCase=true
  * export.includeSchemaInfo=false
+ * export.continueOnFailure=true
+ * export.promptBeforeExport=true
+ * export.overwriteExistingFiles=false
+ * export.threadPoolSize=4
  * export.queryPattern=SELECT * FROM %s
  *
  * # Optional AWS KMS encryption
@@ -103,6 +112,10 @@ public class DynamicJdbcExportCli {
     private static final String PROP_JDBC_URL = "jdbc.url";
     private static final String PROP_JDBC_USER = "jdbc.user";
     private static final String PROP_JDBC_PASSWORD = "jdbc.password";
+    private static final String PROP_JDBC_DRIVER_CLASS = "jdbc.driverClass";
+    private static final String PROP_SSL_ROOTCERT = "ssl.rootcert";
+    private static final String PROP_SSL_MODE = "ssl.mode";
+    private static final String PROP_SSL_FACTORY = "ssl.factory";
     private static final String PROP_OUTPUT_BASE_DIR = "output.baseDir";
 
     // Optional export configuration keys
@@ -112,7 +125,11 @@ public class DynamicJdbcExportCli {
     private static final String PROP_EXPORT_NAMING_STRATEGY = "export.namingStrategy";
     private static final String PROP_EXPORT_CONVERT_CAMEL_CASE = "export.convertCamelCase";
     private static final String PROP_EXPORT_INCLUDE_SCHEMA_INFO = "export.includeSchemaInfo";
+    private static final String PROP_EXPORT_CONTINUE_ON_FAILURE = "export.continueOnFailure";
+    private static final String PROP_EXPORT_PROMPT_BEFORE_EXPORT = "export.promptBeforeExport";
+    private static final String PROP_EXPORT_OVERWRITE_EXISTING = "export.overwriteExistingFiles";
     private static final String PROP_EXPORT_QUERY_PATTERN = "export.queryPattern";
+    private static final String PROP_EXPORT_THREAD_POOL_SIZE = "export.threadPoolSize";
 
     // Optional AWS KMS encryption keys
     private static final String PROP_AWS_KMS_KEY_ID = "aws.kms.keyId";
@@ -160,8 +177,11 @@ public class DynamicJdbcExportCli {
             // Validate required properties
             validateRequiredProperties(properties);
 
+            // Ensure JDBC driver is loaded (fat JARs can drop driver service files)
+            loadJdbcDriver(properties);
+
             // Build export configuration
-            DynamicExportConfig config = buildExportConfig(properties);
+            DynamicExportConfig config = buildExportConfig(properties, parsedArgs.kmsEnabledOverride);
 
             // Read table list or get all tables from database
             List<String> tables;
@@ -170,9 +190,8 @@ public class DynamicJdbcExportCli {
             } else {
                 // Get all tables from database metadata
                 String jdbcUrl = properties.getProperty(PROP_JDBC_URL);
-                String jdbcUser = properties.getProperty(PROP_JDBC_USER);
-                String jdbcPassword = properties.getProperty(PROP_JDBC_PASSWORD);
-                tables = getAllTablesFromDatabase(jdbcUrl, jdbcUser, jdbcPassword);
+                Properties jdbcProperties = buildJdbcProperties(properties, parsedArgs.propertiesFile);
+                tables = getAllTablesFromDatabase(jdbcUrl, jdbcProperties);
                 logger.info("No tables file provided. Found {} tables in database.", tables.size());
             }
 
@@ -187,13 +206,28 @@ public class DynamicJdbcExportCli {
 
             // Extract connection properties
             String jdbcUrl = properties.getProperty(PROP_JDBC_URL);
-            String jdbcUser = properties.getProperty(PROP_JDBC_USER);
-            String jdbcPassword = properties.getProperty(PROP_JDBC_PASSWORD);
+            Properties jdbcProperties = buildJdbcProperties(properties, parsedArgs.propertiesFile);
             File outputBaseDir = new File(properties.getProperty(PROP_OUTPUT_BASE_DIR));
             String queryPattern = properties.getProperty(PROP_EXPORT_QUERY_PATTERN, DEFAULT_QUERY_PATTERN);
 
+            // Validate tables exist before exporting when a list is provided
+            List<String> missingTables = new ArrayList<>();
+            if (parsedArgs.tablesFile != null) {
+                missingTables = findMissingTables(tables, jdbcUrl, jdbcProperties);
+                if (!missingTables.isEmpty()) {
+                    logger.warn("Missing {} table(s): {}", missingTables.size(), formatTableList(missingTables, 20));
+                }
+            }
+
+            if (config.isPromptBeforeExport()) {
+                if (!confirmContinueWithExport(System.out, System.in, tables.size(), missingTables)) {
+                    logger.error("Export aborted by user.");
+                    return EXIT_VALIDATION_ERROR;
+                }
+            }
+
             // Create connection supplier
-            ConnectionSupplier connectionSupplier = new ConnectionSupplier(jdbcUrl, jdbcUser, jdbcPassword);
+            ConnectionSupplier connectionSupplier = new ConnectionSupplier(jdbcUrl, jdbcProperties);
 
             // Log export configuration
             logger.info("Starting parallel export of {} tables", tables.size());
@@ -259,6 +293,16 @@ public class DynamicJdbcExportCli {
                 continue;
             }
 
+            if ("--kms".equals(arg)) {
+                parsedArgs.kmsEnabledOverride = mergeKmsOverride(parsedArgs.kmsEnabledOverride, true);
+                continue;
+            }
+
+            if ("--no-kms".equals(arg)) {
+                parsedArgs.kmsEnabledOverride = mergeKmsOverride(parsedArgs.kmsEnabledOverride, false);
+                continue;
+            }
+
             throw new ValidationException("Unknown argument: " + arg);
         }
 
@@ -307,7 +351,7 @@ public class DynamicJdbcExportCli {
     /**
      * Build export configuration from properties.
      */
-    private static DynamicExportConfig buildExportConfig(Properties properties) {
+    private static DynamicExportConfig buildExportConfig(Properties properties, Boolean kmsEnabledOverride) {
         DynamicExportConfig config = new DynamicExportConfig();
 
         // Batch size
@@ -366,10 +410,47 @@ public class DynamicJdbcExportCli {
             config.setIncludeSchemaInfo(includeSchemaInfo);
         }
 
+        // Continue on failure
+        if (properties.containsKey(PROP_EXPORT_CONTINUE_ON_FAILURE)) {
+            boolean continueOnFailure = Boolean.parseBoolean(properties.getProperty(PROP_EXPORT_CONTINUE_ON_FAILURE));
+            config.setContinueOnFailure(continueOnFailure);
+        }
+
+        // Prompt before export
+        if (properties.containsKey(PROP_EXPORT_PROMPT_BEFORE_EXPORT)) {
+            boolean promptBeforeExport = Boolean.parseBoolean(properties.getProperty(PROP_EXPORT_PROMPT_BEFORE_EXPORT));
+            config.setPromptBeforeExport(promptBeforeExport);
+        }
+
+        // Overwrite existing output files
+        if (properties.containsKey(PROP_EXPORT_OVERWRITE_EXISTING)) {
+            boolean overwriteExisting = Boolean.parseBoolean(properties.getProperty(PROP_EXPORT_OVERWRITE_EXISTING));
+            config.setOverwriteExistingFiles(overwriteExisting);
+        }
+
+        // Thread pool size
+        if (properties.containsKey(PROP_EXPORT_THREAD_POOL_SIZE)) {
+            try {
+                int threadPoolSize = Integer.parseInt(properties.getProperty(PROP_EXPORT_THREAD_POOL_SIZE));
+                if (threadPoolSize < 0) {
+                    throw new ValidationException("Thread pool size must be >= 0");
+                }
+                config.setThreadPoolSize(threadPoolSize);
+            } catch (NumberFormatException e) {
+                throw new ValidationException("Invalid thread pool size: " + properties.getProperty(PROP_EXPORT_THREAD_POOL_SIZE));
+            }
+        }
+
         // KMS encryption configuration
-        if (properties.containsKey(PROP_AWS_KMS_KEY_ID)) {
+        if (Boolean.TRUE.equals(kmsEnabledOverride) && !properties.containsKey(PROP_AWS_KMS_KEY_ID)) {
+            throw new ValidationException("KMS encryption enabled but aws.kms.keyId is not configured");
+        }
+        if (!Boolean.FALSE.equals(kmsEnabledOverride) && properties.containsKey(PROP_AWS_KMS_KEY_ID)) {
             KmsEncryptionConfig kmsConfig = buildKmsConfig(properties);
             config.setKmsEncryptionConfig(kmsConfig);
+        }
+        if (Boolean.FALSE.equals(kmsEnabledOverride) && properties.containsKey(PROP_AWS_KMS_KEY_ID)) {
+            logger.info("KMS encryption disabled by CLI flag; ignoring aws.kms.* properties");
         }
 
         return config;
@@ -401,6 +482,13 @@ public class DynamicJdbcExportCli {
 
         kmsConfig.validate();
         return kmsConfig;
+    }
+
+    private static Boolean mergeKmsOverride(Boolean current, boolean nextValue) {
+        if (current != null && current.booleanValue() != nextValue) {
+            throw new ValidationException("Conflicting KMS flags: use only one of --kms or --no-kms");
+        }
+        return nextValue;
     }
 
     /**
@@ -443,30 +531,16 @@ public class DynamicJdbcExportCli {
      * Retrieve all table names from database metadata.
      * Filters out system tables and views, returning only user tables.
      */
-    private static List<String> getAllTablesFromDatabase(String jdbcUrl, String jdbcUser, String jdbcPassword) throws SQLException {
+    private static List<String> getAllTablesFromDatabase(String jdbcUrl, Properties jdbcProperties) throws SQLException {
         List<String> tables = new ArrayList<>();
-        
-        try (Connection connection = DriverManager.getConnection(jdbcUrl, jdbcUser, jdbcPassword)) {
+
+        try (Connection connection = DriverManager.getConnection(jdbcUrl, jdbcProperties)) {
             DatabaseMetaData metaData = connection.getMetaData();
             
-            // Get all tables (TABLE type only, not views or system tables)
-            try (ResultSet rs = metaData.getTables(null, null, "%", new String[]{"TABLE"})) {
-                while (rs.next()) {
-                    String tableName = rs.getString("TABLE_NAME");
-                    String schemaName = rs.getString("TABLE_SCHEM");
-                    
-                    // Skip system tables (common patterns)
-                    if (isSystemTable(tableName, schemaName)) {
-                        continue;
-                    }
-                    
-                    // Include schema prefix if present and not default
-                    if (schemaName != null && !schemaName.isEmpty() && !schemaName.equalsIgnoreCase("public")) {
-                        tables.add(schemaName + "." + tableName);
-                    } else {
-                        tables.add(tableName);
-                    }
-                }
+            // Prefer TABLE type, fallback to driver-specific types (e.g., BASE TABLE)
+            tables.addAll(collectTables(metaData, new String[] {"TABLE"}));
+            if (tables.isEmpty()) {
+                tables.addAll(collectTables(metaData, null));
             }
         }
         
@@ -475,6 +549,191 @@ public class DynamicJdbcExportCli {
         }
         
         return tables;
+    }
+
+    private static List<String> collectTables(DatabaseMetaData metaData, String[] types) throws SQLException {
+        List<String> tables = new ArrayList<>();
+        try (ResultSet rs = metaData.getTables(null, null, "%", types)) {
+            while (rs.next()) {
+                String tableType = rs.getString("TABLE_TYPE");
+                if (!isUserTableType(tableType)) {
+                    continue;
+                }
+                String tableName = rs.getString("TABLE_NAME");
+                String schemaName = rs.getString("TABLE_SCHEM");
+
+                // Skip system tables (common patterns)
+                if (isSystemTable(tableName, schemaName)) {
+                    continue;
+                }
+
+                // Include schema prefix if present and not default
+                if (schemaName != null && !schemaName.isEmpty() && !isDefaultSchema(schemaName)) {
+                    tables.add(schemaName + "." + tableName);
+                } else {
+                    tables.add(tableName);
+                }
+            }
+        }
+        return tables;
+    }
+
+    private static boolean isUserTableType(String tableType) {
+        if (tableType == null) {
+            return true;
+        }
+        String normalized = tableType.trim().toUpperCase(Locale.ROOT);
+        return normalized.equals("TABLE") || normalized.equals("BASE TABLE");
+    }
+
+    private static boolean isDefaultSchema(String schemaName) {
+        String normalized = schemaName.trim().toLowerCase(Locale.ROOT);
+        return normalized.equals("public") || normalized.equals("main");
+    }
+
+    private static List<String> findMissingTables(List<String> tables, String jdbcUrl, Properties jdbcProperties) throws SQLException {
+        List<String> availableTables = getAllTablesFromDatabase(jdbcUrl, jdbcProperties);
+        Map<String, Set<String>> tablesBySchema = new HashMap<>();
+        Set<String> allTables = new HashSet<>();
+
+        for (String table : availableTables) {
+            String normalized = normalizeIdentifier(table);
+            allTables.add(normalized);
+
+            String schema = null;
+            String tableName = table;
+            int dotIndex = table.indexOf('.');
+            if (dotIndex > 0) {
+                schema = table.substring(0, dotIndex);
+                tableName = table.substring(dotIndex + 1);
+            }
+
+            String normalizedSchema = schema != null ? normalizeIdentifier(schema) : null;
+            String normalizedTable = normalizeIdentifier(tableName);
+            if (normalizedSchema != null) {
+                tablesBySchema.computeIfAbsent(normalizedSchema, key -> new HashSet<>()).add(normalizedTable);
+            }
+        }
+
+        List<String> currentSchemas = parseCurrentSchemas(jdbcUrl);
+        List<String> missing = new ArrayList<>();
+
+        for (String table : tables) {
+            String trimmed = table.trim();
+            String schema = null;
+            String tableName = trimmed;
+            int dotIndex = trimmed.indexOf('.');
+            if (dotIndex > 0) {
+                schema = trimmed.substring(0, dotIndex);
+                tableName = trimmed.substring(dotIndex + 1);
+            }
+
+            String normalizedSchema = schema != null ? normalizeIdentifier(schema) : null;
+            String normalizedTable = normalizeIdentifier(tableName);
+
+            boolean exists;
+            if (normalizedSchema != null) {
+                exists = tablesBySchema.containsKey(normalizedSchema)
+                    && tablesBySchema.get(normalizedSchema).contains(normalizedTable);
+            } else if (!currentSchemas.isEmpty()) {
+                exists = false;
+                for (String currentSchema : currentSchemas) {
+                    Set<String> schemaTables = tablesBySchema.get(currentSchema);
+                    if (schemaTables != null && schemaTables.contains(normalizedTable)) {
+                        exists = true;
+                        break;
+                    }
+                }
+            } else {
+                exists = allTables.contains(normalizedTable);
+            }
+
+            if (!exists) {
+                missing.add(trimmed);
+            }
+        }
+
+        return missing;
+    }
+
+    private static List<String> parseCurrentSchemas(String jdbcUrl) {
+        List<String> schemas = new ArrayList<>();
+        if (jdbcUrl == null) {
+            return schemas;
+        }
+        int queryIndex = jdbcUrl.indexOf('?');
+        if (queryIndex < 0 || queryIndex + 1 >= jdbcUrl.length()) {
+            return schemas;
+        }
+        String query = jdbcUrl.substring(queryIndex + 1);
+        String[] params = query.split("&");
+        for (String param : params) {
+            int equalsIndex = param.indexOf('=');
+            if (equalsIndex <= 0) {
+                continue;
+            }
+            String key = param.substring(0, equalsIndex);
+            if (!"currentschema".equalsIgnoreCase(key)) {
+                continue;
+            }
+            String value = param.substring(equalsIndex + 1);
+            if (value.isBlank()) {
+                continue;
+            }
+            for (String schema : value.split(",")) {
+                String normalized = normalizeIdentifier(schema);
+                if (!normalized.isBlank()) {
+                    schemas.add(normalized);
+                }
+            }
+        }
+        return schemas;
+    }
+
+    private static String normalizeIdentifier(String value) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.trim();
+        if (trimmed.length() >= 2) {
+            char first = trimmed.charAt(0);
+            char last = trimmed.charAt(trimmed.length() - 1);
+            if ((first == '"' && last == '"') || (first == '`' && last == '`') || (first == '[' && last == ']')) {
+                trimmed = trimmed.substring(1, trimmed.length() - 1);
+            }
+        }
+        return trimmed.toLowerCase(Locale.ROOT);
+    }
+
+    private static boolean confirmContinueWithExport(
+        PrintStream out,
+        InputStream in,
+        int tableCount,
+        List<String> missingTables
+    ) throws IOException {
+        out.println("About to export " + tableCount + " table(s).");
+        if (missingTables != null && !missingTables.isEmpty()) {
+            out.println("The following tables were not found in the database:");
+            out.println(formatTableList(missingTables, 50));
+        }
+        out.print("Continue exporting anyway? [y/N]: ");
+        out.flush();
+
+        BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+        String response = reader.readLine();
+        if (response == null) {
+            return false;
+        }
+        String normalized = response.trim().toLowerCase(Locale.ROOT);
+        return normalized.equals("y") || normalized.equals("yes");
+    }
+
+    private static String formatTableList(List<String> tables, int maxItems) {
+        if (tables.size() <= maxItems) {
+            return String.join(", ", tables);
+        }
+        List<String> subset = tables.subList(0, maxItems);
+        return String.join(", ", subset) + ", ... (" + tables.size() + " total)";
     }
 
     /**
@@ -510,6 +769,8 @@ public class DynamicJdbcExportCli {
         System.out.println("  --properties <file>  Path to properties file (required)");
         System.out.println("  --tables <file>      Path to table list file (optional)");
         System.out.println("                       If not provided, all user tables will be exported");
+        System.out.println("  --kms                Force-enable KMS encryption (requires aws.kms.keyId)");
+        System.out.println("  --no-kms             Disable KMS encryption even if aws.kms.* is set");
         System.out.println("  --help, -h           Show this help message");
         System.out.println();
         System.out.println("Properties file format:");
@@ -518,6 +779,12 @@ public class DynamicJdbcExportCli {
         System.out.println("  jdbc.user=username");
         System.out.println("  jdbc.password=password");
         System.out.println("  output.baseDir=/path/to/output");
+        System.out.println("  # Optional JDBC driver override");
+        System.out.println("  jdbc.driverClass=org.postgresql.Driver");
+        System.out.println("  # Optional SSL settings (driver-dependent)");
+        System.out.println("  ssl.rootcert=/path/to/ca.pem");
+        System.out.println("  ssl.mode=verify-ca");
+        System.out.println("  ssl.factory=com.huawei.gaussdb.jdbc.ssl.LibPQGmtlsFactory");
         System.out.println();
         System.out.println("  # Optional export configuration");
         System.out.println("  export.batchSize=10000");
@@ -526,6 +793,10 @@ public class DynamicJdbcExportCli {
         System.out.println("  export.namingStrategy=SNAKE_CASE");
         System.out.println("  export.convertCamelCase=true");
         System.out.println("  export.includeSchemaInfo=false");
+        System.out.println("  export.continueOnFailure=true");
+        System.out.println("  export.promptBeforeExport=true");
+        System.out.println("  export.overwriteExistingFiles=false");
+        System.out.println("  export.threadPoolSize=4");
         System.out.println("  export.queryPattern=SELECT * FROM %s");
         System.out.println();
         System.out.println("  # Optional AWS KMS encryption");
@@ -551,29 +822,20 @@ public class DynamicJdbcExportCli {
      */
     private static class ConnectionSupplier implements java.util.function.Supplier<Connection> {
         private final String jdbcUrl;
-        private final String jdbcUser;
-        private final String jdbcPassword;
+        private final Properties jdbcProperties;
 
-        public ConnectionSupplier(String jdbcUrl, String jdbcUser, String jdbcPassword) {
+        public ConnectionSupplier(String jdbcUrl, Properties jdbcProperties) {
             this.jdbcUrl = jdbcUrl;
-            this.jdbcUser = jdbcUser;
-            this.jdbcPassword = jdbcPassword;
+            this.jdbcProperties = jdbcProperties;
         }
 
         @Override
         public Connection get() {
             try {
-                if (isNullOrEmpty(jdbcUser) && isNullOrEmpty(jdbcPassword)) {
-                    return DriverManager.getConnection(jdbcUrl);
-                }
-                return DriverManager.getConnection(jdbcUrl, jdbcUser, jdbcPassword);
+                return DriverManager.getConnection(jdbcUrl, jdbcProperties);
             } catch (SQLException e) {
                 throw new RuntimeException("Failed to create database connection", e);
             }
-        }
-
-        private boolean isNullOrEmpty(String str) {
-            return str == null || str.trim().isEmpty();
         }
     }
 
@@ -584,6 +846,7 @@ public class DynamicJdbcExportCli {
         String propertiesFile;
         String tablesFile;
         boolean showHelp;
+        Boolean kmsEnabledOverride;
     }
 
     /**
@@ -592,6 +855,125 @@ public class DynamicJdbcExportCli {
     private static class ValidationException extends RuntimeException {
         public ValidationException(String message) {
             super(message);
+        }
+    }
+
+    private static void loadJdbcDriver(Properties properties) {
+        String configuredDriver = trimToNull(properties.getProperty(PROP_JDBC_DRIVER_CLASS));
+        if (configuredDriver != null) {
+            loadDriverClass(configuredDriver, true);
+            return;
+        }
+
+        String jdbcUrl = properties.getProperty(PROP_JDBC_URL, "");
+        String inferredDriver = inferDriverFromUrl(jdbcUrl);
+        if (inferredDriver != null) {
+            if (loadDriverClass(inferredDriver, false)) {
+                return;
+            }
+        }
+
+        for (String candidate : getKnownDriverClasses()) {
+            loadDriverClass(candidate, false);
+        }
+    }
+
+    private static String inferDriverFromUrl(String jdbcUrl) {
+        if (jdbcUrl == null) {
+            return null;
+        }
+        String normalized = jdbcUrl.trim().toLowerCase();
+        if (normalized.startsWith("jdbc:gaussdb:")) {
+            return "com.huawei.gaussdb.jdbc.Driver";
+        }
+        if (normalized.startsWith("jdbc:postgresql:")) {
+            return "org.postgresql.Driver";
+        }
+        if (normalized.startsWith("jdbc:mysql:")) {
+            return "com.mysql.cj.jdbc.Driver";
+        }
+        if (normalized.startsWith("jdbc:sqlite:")) {
+            return "org.sqlite.JDBC";
+        }
+        if (normalized.startsWith("jdbc:duckdb:")) {
+            return "org.duckdb.DuckDBDriver";
+        }
+        return null;
+    }
+
+    private static boolean loadDriverClass(String className, boolean required) {
+        try {
+            Class.forName(className);
+            logger.info("Loaded JDBC driver: {}", className);
+            return true;
+        } catch (ClassNotFoundException e) {
+            if (required) {
+                throw new ValidationException("JDBC driver class not found: " + className);
+            }
+            logger.debug("JDBC driver class not found: {}", className);
+            return false;
+        }
+    }
+
+    private static List<String> getKnownDriverClasses() {
+        List<String> drivers = new ArrayList<>();
+        drivers.add("com.huawei.gaussdb.jdbc.Driver");
+        drivers.add("org.postgresql.Driver");
+        drivers.add("com.mysql.cj.jdbc.Driver");
+        drivers.add("org.sqlite.JDBC");
+        drivers.add("org.duckdb.DuckDBDriver");
+        return drivers;
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static Properties buildJdbcProperties(Properties properties, String propertiesFile) {
+        Properties jdbcProperties = new Properties();
+
+        String jdbcUser = trimToNull(properties.getProperty(PROP_JDBC_USER));
+        String jdbcPassword = trimToNull(properties.getProperty(PROP_JDBC_PASSWORD));
+        if (jdbcUser != null) {
+            jdbcProperties.setProperty("user", jdbcUser);
+        }
+        if (jdbcPassword != null) {
+            jdbcProperties.setProperty("password", jdbcPassword);
+        }
+
+        String sslRootCert = trimToNull(properties.getProperty(PROP_SSL_ROOTCERT));
+        if (sslRootCert != null) {
+            jdbcProperties.setProperty("sslrootcert", resolvePath(propertiesFile, sslRootCert));
+        }
+        String sslMode = trimToNull(properties.getProperty(PROP_SSL_MODE));
+        if (sslMode != null) {
+            jdbcProperties.setProperty("sslmode", sslMode);
+        }
+        String sslFactory = trimToNull(properties.getProperty(PROP_SSL_FACTORY));
+        if (sslFactory != null) {
+            jdbcProperties.setProperty("sslfactory", sslFactory);
+        }
+
+        return jdbcProperties;
+    }
+
+    private static String resolvePath(String propertiesFile, String value) {
+        try {
+            java.nio.file.Path path = java.nio.file.Paths.get(value);
+            if (path.isAbsolute()) {
+                return path.toString();
+            }
+            java.nio.file.Path baseDir = java.nio.file.Paths.get(propertiesFile).toAbsolutePath().getParent();
+            if (baseDir == null) {
+                return path.toString();
+            }
+            return baseDir.resolve(path).normalize().toString();
+        } catch (Exception e) {
+            return value;
         }
     }
 }

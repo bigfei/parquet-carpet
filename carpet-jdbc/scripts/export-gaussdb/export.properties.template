@@ -13,6 +13,9 @@ jdbc.url=jdbc:postgresql://localhost:5432/mydb
 jdbc.user=myuser
 jdbc.password=mypassword
 
+# Optional JDBC driver override (use when the driver service file is not bundled)
+# jdbc.driverClass=org.postgresql.Driver
+
 # MySQL example:
 # jdbc.url=jdbc:mysql://localhost:3306/mydb
 # jdbc.user=myuser
@@ -22,6 +25,10 @@ jdbc.password=mypassword
 # jdbc.url=jdbc:gaussdb://127.0.0.1:8889/mydb?currentSchema=myschema
 # jdbc.user=myuser
 # jdbc.password=mypassword
+# jdbc.driverClass=com.huawei.gaussdb.jdbc.Driver
+# ssl.rootcert=/path/to/ca.pem
+# ssl.mode=verify-ca
+# ssl.factory=com.huawei.gaussdb.jdbc.ssl.LibPQGmtlsFactory
 
 # SQLite example:
 # jdbc.url=jdbc:sqlite:/path/to/database.db
@@ -73,6 +80,18 @@ export.convertCamelCase=true
 # Include Parquet schema metadata in output files.
 # Default: true
 export.includeSchemaInfo=true
+
+# Continue exporting even if a table fails.
+# Default: true
+export.continueOnFailure=true
+
+# Prompt before exporting tables.
+# Default: true
+export.promptBeforeExport=true
+
+# Overwrite existing output files.
+# Default: false
+export.overwriteExistingFiles=false
 
 # -----------------------------------------------------------------------------
 # AWS KMS Encryption (OPTIONAL)

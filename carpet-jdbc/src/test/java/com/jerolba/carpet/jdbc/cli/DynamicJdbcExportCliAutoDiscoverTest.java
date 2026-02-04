@@ -52,11 +52,14 @@ class DynamicJdbcExportCliAutoDiscoverTest {
 
     private Connection connection;
     private String DB_URL;
+    private Path dbFile;
 
     @BeforeEach
-    void setup() throws SQLException {
-        // Use in-memory DuckDB for testing
-        DB_URL = "jdbc:duckdb:";
+    void setup() throws SQLException, IOException {
+        // Use a file-backed DuckDB so CLI connections see the same data
+        dbFile = outputTempDir.resolve("autodiscover.duckdb");
+        Files.deleteIfExists(dbFile);
+        DB_URL = "jdbc:duckdb:" + dbFile.toAbsolutePath();
         connection = DriverManager.getConnection(DB_URL);
 
         try (Statement stmt = connection.createStatement()) {
@@ -99,6 +102,13 @@ class DynamicJdbcExportCliAutoDiscoverTest {
         } catch (SQLException e) {
             // Ignore
         }
+        if (dbFile != null) {
+            try {
+                Files.deleteIfExists(dbFile);
+            } catch (IOException e) {
+                // Ignore cleanup errors
+            }
+        }
     }
 
     @Test
@@ -110,6 +120,7 @@ class DynamicJdbcExportCliAutoDiscoverTest {
         props.setProperty("jdbc.password", "");
         props.setProperty("output.baseDir", outputTempDir.resolve("output").toString());
         props.setProperty("export.batchSize", "1000");
+        props.setProperty("export.promptBeforeExport", "false");
         props.store(Files.newOutputStream(propertiesFile.toPath()), "Test properties");
 
         String[] args = new String[] {
@@ -150,6 +161,7 @@ class DynamicJdbcExportCliAutoDiscoverTest {
         props.setProperty("jdbc.user", "");
         props.setProperty("jdbc.password", "");
         props.setProperty("output.baseDir", outputTempDir.resolve("output").toString());
+        props.setProperty("export.promptBeforeExport", "false");
         props.store(Files.newOutputStream(propertiesFile.toPath()), "Test properties");
 
         String[] args = new String[] {
@@ -175,6 +187,7 @@ class DynamicJdbcExportCliAutoDiscoverTest {
         props.setProperty("jdbc.user", "");
         props.setProperty("jdbc.password", "");
         props.setProperty("output.baseDir", outputTempDir.resolve("output").toString());
+        props.setProperty("export.promptBeforeExport", "false");
         props.store(Files.newOutputStream(propertiesFile.toPath()), "Test properties");
 
         File tablesFile = outputTempDir.resolve("tables.txt").toFile();

@@ -30,6 +30,9 @@ public class DynamicExportConfig {
     private boolean convertCamelCase = true;
     private boolean includeSchemaInfo = false;
     private boolean useMetadataCaching = true;  // Performance optimization toggle
+    private boolean continueOnFailure = true;
+    private boolean promptBeforeExport = true;
+    private boolean overwriteExistingFiles = false;
     private KmsEncryptionConfig kmsEncryptionConfig;
     private int threadPoolSize = 0;
     private ZoneId outputTimeZone = ZoneId.systemDefault();
@@ -143,6 +146,48 @@ public class DynamicExportConfig {
     }
 
     /**
+     * Check if the export should continue when a table fails
+     */
+    public boolean isContinueOnFailure() {
+        return continueOnFailure;
+    }
+
+    /**
+     * Enable or disable continue-on-failure behavior (default: true)
+     */
+    public void setContinueOnFailure(boolean continueOnFailure) {
+        this.continueOnFailure = continueOnFailure;
+    }
+
+    /**
+     * Check if the CLI should prompt before exporting
+     */
+    public boolean isPromptBeforeExport() {
+        return promptBeforeExport;
+    }
+
+    /**
+     * Enable or disable CLI prompt before exporting (default: true)
+     */
+    public void setPromptBeforeExport(boolean promptBeforeExport) {
+        this.promptBeforeExport = promptBeforeExport;
+    }
+
+    /**
+     * Check if existing output files should be overwritten
+     */
+    public boolean isOverwriteExistingFiles() {
+        return overwriteExistingFiles;
+    }
+
+    /**
+     * Enable or disable overwriting existing output files (default: false)
+     */
+    public void setOverwriteExistingFiles(boolean overwriteExistingFiles) {
+        this.overwriteExistingFiles = overwriteExistingFiles;
+    }
+
+    /**
      * Builder pattern for creating configuration with method chaining
      */
     public static DynamicExportConfig builder() {
@@ -194,6 +239,30 @@ public class DynamicExportConfig {
      */
     public DynamicExportConfig withIncludeSchemaInfo(boolean includeSchemaInfo) {
         setIncludeSchemaInfo(includeSchemaInfo);
+        return this;
+    }
+
+    /**
+     * Enable/disable continue-on-failure behavior and return this instance for chaining
+     */
+    public DynamicExportConfig withContinueOnFailure(boolean continueOnFailure) {
+        setContinueOnFailure(continueOnFailure);
+        return this;
+    }
+
+    /**
+     * Enable/disable CLI prompt before exporting and return this instance for chaining
+     */
+    public DynamicExportConfig withPromptBeforeExport(boolean promptBeforeExport) {
+        setPromptBeforeExport(promptBeforeExport);
+        return this;
+    }
+
+    /**
+     * Enable/disable overwriting existing output files and return this instance for chaining
+     */
+    public DynamicExportConfig withOverwriteExistingFiles(boolean overwriteExistingFiles) {
+        setOverwriteExistingFiles(overwriteExistingFiles);
         return this;
     }
 

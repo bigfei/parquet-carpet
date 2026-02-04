@@ -623,6 +623,8 @@ java -jar carpet-jdbc-0.5.0-full.jar \
 
 **Optional Arguments:**
 - `--tables <file>`: Path to the table list file (one table name per line). If omitted, all user tables are exported.
+- `--kms`: Force-enable KMS encryption (requires `aws.kms.keyId`).
+- `--no-kms`: Disable KMS encryption even if `aws.kms.*` is configured.
 - `--help`: Display usage information
 
 ### Properties File Format

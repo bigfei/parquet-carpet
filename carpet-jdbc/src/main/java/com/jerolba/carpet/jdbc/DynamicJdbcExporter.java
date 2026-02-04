@@ -64,9 +64,11 @@ public class DynamicJdbcExporter {
      * Each table is exported to a separate Parquet file under a date-based folder
      * (yyyyMMdd format using the configured output timezone).
      *
-     * Fail-fast behavior: If any table export fails, all remaining tasks are cancelled,
-     * the executor shuts down, and the failed table's output file (including .metadata
-     * sidecar if KMS enabled) is deleted. No partial results are returned.
+     * Continue-on-failure behavior (default): table export errors are logged and the export
+     * proceeds for the remaining tables. Failed table output files (including .metadata
+     * sidecar if KMS enabled) are deleted. An IOException is thrown after all tables
+     * finish if any failures occurred. Disable with config.setContinueOnFailure(false)
+     * to restore fail-fast behavior.
      *
      * Thread pool size: configurable, default max(1, availableProcessors - 1) capped by table count
      *
@@ -76,7 +78,7 @@ public class DynamicJdbcExporter {
      * @param config Export configuration (compression, KMS encryption, etc.)
      * @param connectionSupplier Supplier for JDBC connections (one per thread, not shared)
      * @return Map of table names to row counts on success
-     * @throws IOException if any export fails (no partial results)
+     * @throws IOException if any export fails (after all tables finish)
      * @throws IllegalArgumentException if queryPattern doesn't contain %s
      */
     public static Map<String, Long> exportParallelWithConfig(
@@ -109,16 +111,22 @@ public class DynamicJdbcExporter {
 
         Map<String, Long> results = new LinkedHashMap<>();
         List<Future<TableExportResult>> futures = new ArrayList<>();
+        boolean continueOnFailure = config != null && config.isContinueOnFailure();
         long totalRows = 0;
-        int completedTables = 0;
+        int processedTables = 0;
+        int successfulTables = 0;
+        int failedTables = 0;
+        List<TableExportResult> failures = new ArrayList<>();
 
         try {
             for (String tableName : tableNames) {
                 Callable<TableExportResult> task = () -> {
                     Connection connection = connectionSupplier.get();
+                    File outputFile = null;
                     try {
                         String sanitizedName = tableName.replace("/", "_").replace("\\", "_");
-                        File outputFile = new File(outputDir, sanitizedName + ".parquet");
+                        outputFile = new File(outputDir, sanitizedName + ".parquet");
+                        prepareOutputFile(outputFile, config);
 
                         String query = String.format(queryPattern, tableName);
 
@@ -126,19 +134,22 @@ public class DynamicJdbcExporter {
 
                         long rowCount;
                         if (config.getKmsEncryptionConfig() != null) {
-                            rowCount = exportWithKmsEncryption(connection, query, outputFile, config);
+                            rowCount = exportWithKmsEncryption(connection, query, outputFile, config, tableName);
                         } else {
-                            rowCount = exportWithConfig(connection, query, outputFile, config);
+                            rowCount = exportWithConfig(connection, query, outputFile, config, tableName);
                         }
 
                         long duration = System.currentTimeMillis() - startTime;
 
-                        return new TableExportResult(tableName, rowCount, outputFile, null);
+                        return new TableExportResult(tableName, rowCount, outputFile, null, true);
                     } catch (Exception e) {
                         logger.error("Failed to export table: {} - {}", tableName, e.getMessage(), e);
-                        String sanitizedName = tableName.replace("/", "_").replace("\\", "_");
-                        File outputFile = new File(outputDir, sanitizedName + ".parquet");
-                        return new TableExportResult(tableName, 0L, outputFile, e);
+                        boolean shouldCleanup = !(e instanceof OutputFileExistsException);
+                        if (outputFile == null) {
+                            String sanitizedName = tableName.replace("/", "_").replace("\\", "_");
+                            outputFile = new File(outputDir, sanitizedName + ".parquet");
+                        }
+                        return new TableExportResult(tableName, 0L, outputFile, e, shouldCleanup);
                     } finally {
                         try {
                             connection.close();
@@ -154,38 +165,65 @@ public class DynamicJdbcExporter {
             for (Future<TableExportResult> future : futures) {
                 TableExportResult result = future.get();
 
+                processedTables++;
                 if (result.error != null) {
-                    logger.error("Export failed for table: {}, cancelling remaining tasks", result.tableName);
+                    if (!continueOnFailure) {
+                        logger.error("Export failed for table: {}, cancelling remaining tasks", result.tableName);
 
-                    executor.shutdownNow();
-                    try {
-                        executor.awaitTermination(60, TimeUnit.SECONDS);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
+                        executor.shutdownNow();
+                        try {
+                            executor.awaitTermination(60, TimeUnit.SECONDS);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+
+                        if (result.shouldCleanup) {
+                            deleteIfExists(result.outputFile);
+                            deleteIfExists(new File(result.outputFile.getAbsolutePath() + ".metadata"));
+                        }
+
+                        throw new IOException("Failed to export table: " + result.tableName, result.error);
                     }
 
-                    deleteIfExists(result.outputFile);
-                    deleteIfExists(new File(result.outputFile.getAbsolutePath() + ".metadata"));
-
-                    throw new IOException("Failed to export table: " + result.tableName, result.error);
+                    failedTables++;
+                    if (result.shouldCleanup) {
+                        deleteIfExists(result.outputFile);
+                        deleteIfExists(new File(result.outputFile.getAbsolutePath() + ".metadata"));
+                    }
+                    failures.add(result);
+                } else {
+                    results.put(result.tableName, result.rowCount);
+                    totalRows += result.rowCount;
+                    successfulTables++;
                 }
-
-                results.put(result.tableName, result.rowCount);
-                totalRows += result.rowCount;
-                completedTables++;
 
                 // Log progress after each table completion
                 long elapsedMs = System.currentTimeMillis() - exportStartTime;
                 double throughput = (totalRows * 1000.0) / elapsedMs;
-                logger.info("Exported {}/{} tables, {} rows, {} rows/sec",
-                    completedTables, tableNames.size(), totalRows, (long)throughput);
+                logger.info("Processed {}/{} tables ({} successful, {} failed), {} rows, {} rows/sec, finished table: {}",
+                    processedTables, tableNames.size(), successfulTables, failedTables, totalRows, (long)throughput, result.tableName);
             }
 
             long totalDuration = System.currentTimeMillis() - exportStartTime;
             double finalThroughput = (totalRows * 1000.0) / totalDuration;
-            logger.info("Parallel export completed successfully: {} tables, {} rows in {} ms ({} rows/sec)",
-                results.size(), totalRows, totalDuration, (long)finalThroughput);
-            return results;
+            if (failures.isEmpty()) {
+                logger.info("Parallel export completed successfully: {} tables, {} rows in {} ms ({} rows/sec)",
+                    results.size(), totalRows, totalDuration, (long)finalThroughput);
+                return results;
+            }
+
+            logger.warn("Parallel export completed with failures: {} failed of {} tables, {} rows in {} ms ({} rows/sec)",
+                failures.size(), tableNames.size(), totalRows, totalDuration, (long)finalThroughput);
+
+            if (continueOnFailure) {
+                TableExportResult firstFailure = failures.get(0);
+                throw new IOException(
+                    "Failed to export " + failures.size() + " table(s). First failure: " + firstFailure.tableName,
+                    firstFailure.error
+                );
+            }
+
+            throw new IOException("Parallel export failed with table errors");
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -215,12 +253,20 @@ public class DynamicJdbcExporter {
         final long rowCount;
         final File outputFile;
         final Exception error;
+        final boolean shouldCleanup;
 
-        TableExportResult(String tableName, long rowCount, File outputFile, Exception error) {
+        TableExportResult(String tableName, long rowCount, File outputFile, Exception error, boolean shouldCleanup) {
             this.tableName = tableName;
             this.rowCount = rowCount;
             this.outputFile = outputFile;
             this.error = error;
+            this.shouldCleanup = shouldCleanup;
+        }
+    }
+
+    private static class OutputFileExistsException extends IOException {
+        OutputFileExistsException(String message) {
+            super(message);
         }
     }
 
@@ -243,6 +289,66 @@ public class DynamicJdbcExporter {
     private static void deleteIfExists(File file) {
         if (file.exists() && !file.delete()) {
             logger.warn("Failed to delete file: {}", file);
+        }
+    }
+
+    private static void prepareOutputFile(File outputFile, DynamicExportConfig config) throws IOException {
+        File metadataFile = new File(outputFile.getAbsolutePath() + ".metadata");
+        boolean dataExists = outputFile.exists();
+        boolean metadataExists = metadataFile.exists();
+
+        if (dataExists || metadataExists) {
+            if (config == null || !config.isOverwriteExistingFiles()) {
+                String existing = dataExists ? outputFile.getAbsolutePath() : metadataFile.getAbsolutePath();
+                throw new OutputFileExistsException("Output file already exists: " + existing);
+            }
+            if (dataExists && !outputFile.delete()) {
+                throw new IOException("Failed to delete existing output file: " + outputFile.getAbsolutePath());
+            }
+            if (metadataExists && !metadataFile.delete()) {
+                throw new IOException("Failed to delete existing metadata file: " + metadataFile.getAbsolutePath());
+            }
+        }
+    }
+
+    private static AutoCommitState configureAutoCommitForStreaming(Connection connection, DynamicExportConfig config)
+            throws SQLException {
+        boolean originalAutoCommit = connection.getAutoCommit();
+        if (config != null && config.getFetchSize() > 0 && originalAutoCommit) {
+            connection.setAutoCommit(false);
+            return new AutoCommitState(originalAutoCommit, true);
+        }
+        return new AutoCommitState(originalAutoCommit, false);
+    }
+
+    private static void restoreAutoCommit(Connection connection, AutoCommitState state) {
+        if (state == null || !state.autoCommitChanged) {
+            return;
+        }
+        try {
+            try {
+                connection.commit();
+            } catch (SQLException commitError) {
+                logger.debug("Commit failed after export, attempting rollback", commitError);
+                try {
+                    connection.rollback();
+                } catch (SQLException rollbackError) {
+                    logger.warn("Rollback failed after export", rollbackError);
+                }
+            }
+            connection.setAutoCommit(state.originalAutoCommit);
+        } catch (SQLException e) {
+            logger.warn("Failed to restore connection auto-commit state", e);
+        }
+    }
+
+    private static class AutoCommitState {
+        final boolean originalAutoCommit;
+        final boolean autoCommitChanged;
+
+        AutoCommitState(boolean originalAutoCommit, boolean autoCommitChanged) {
+            this.originalAutoCommit = originalAutoCommit;
+            this.autoCommitChanged = autoCommitChanged;
         }
     }
 
@@ -312,7 +418,17 @@ public class DynamicJdbcExporter {
             String sqlQuery,
             File outputFile,
             DynamicExportConfig config) throws SQLException, IOException {
+        return exportWithConfig(connection, sqlQuery, outputFile, config, null);
+    }
 
+    public static long exportWithConfig(
+            Connection connection,
+            String sqlQuery,
+            File outputFile,
+            DynamicExportConfig config,
+            String tableName) throws SQLException, IOException {
+
+        AutoCommitState autoCommitState = configureAutoCommitForStreaming(connection, config);
         try (PreparedStatement statement = connection.prepareStatement(
                 sqlQuery,
                 ResultSet.TYPE_FORWARD_ONLY,
@@ -322,6 +438,7 @@ public class DynamicJdbcExporter {
             if (config.getFetchSize() > 0) {
                 statement.setFetchSize(config.getFetchSize());
             }
+            statement.setFetchDirection(ResultSet.FETCH_FORWARD);
 
             try (ResultSet resultSet = statement.executeQuery()) {
                 // Create dynamic WriteModelFactory based on ResultSet metadata
@@ -345,9 +462,11 @@ public class DynamicJdbcExporter {
 
                 try (CarpetWriter<Map> writer = builder.build()) {
                     // Process in batches and return count
-                    return exportInBatches(resultSet, writer, config);
+                    return exportInBatches(resultSet, writer, config, tableName);
                 }
             }
+        } finally {
+            restoreAutoCommit(connection, autoCommitState);
         }
     }
 
@@ -379,12 +498,22 @@ public class DynamicJdbcExporter {
             String sqlQuery,
             File outputFile,
             DynamicExportConfig config) throws SQLException, IOException {
+        return exportWithKmsEncryption(connection, sqlQuery, outputFile, config, null);
+    }
+
+    public static long exportWithKmsEncryption(
+            Connection connection,
+            String sqlQuery,
+            File outputFile,
+            DynamicExportConfig config,
+            String tableName) throws SQLException, IOException {
 
         if (!config.isKmsEncryptionEnabled()) {
             throw new IllegalStateException(
                 "KMS encryption not configured. Use config.withKmsEncryption() to enable encryption.");
         }
 
+        AutoCommitState autoCommitState = configureAutoCommitForStreaming(connection, config);
         try (PreparedStatement statement = connection.prepareStatement(
                 sqlQuery,
                 ResultSet.TYPE_FORWARD_ONLY,
@@ -394,6 +523,7 @@ public class DynamicJdbcExporter {
             if (config.getFetchSize() > 0) {
                 statement.setFetchSize(config.getFetchSize());
             }
+            statement.setFetchDirection(ResultSet.FETCH_FORWARD);
 
             try (ResultSet resultSet = statement.executeQuery()) {
                 // Create dynamic WriteModelFactory based on ResultSet metadata
@@ -422,7 +552,7 @@ public class DynamicJdbcExporter {
 
                     try (CarpetWriter<Map> writer = builder.build()) {
                         // Process in batches and return count
-                        long totalRows = exportInBatches(resultSet, writer, config);
+                        long totalRows = exportInBatches(resultSet, writer, config, tableName);
 
                         System.out.println("KMS encryption metadata saved to: " +
                             encryptingStream.getMetadataFile().getAbsolutePath());
@@ -434,6 +564,8 @@ public class DynamicJdbcExporter {
                     encryptingStream.close();
                 }
             }
+        } finally {
+            restoreAutoCommit(connection, autoCommitState);
         }
     }
 
@@ -462,7 +594,18 @@ public class DynamicJdbcExporter {
             File outputFile,
             DynamicExportConfig config,
             KmsSharedKeyEncryptionContext sharedContext) throws SQLException, IOException {
+        return exportWithSharedKmsEncryption(connection, sqlQuery, outputFile, config, sharedContext, null);
+    }
 
+    public static long exportWithSharedKmsEncryption(
+            Connection connection,
+            String sqlQuery,
+            File outputFile,
+            DynamicExportConfig config,
+            KmsSharedKeyEncryptionContext sharedContext,
+            String tableName) throws SQLException, IOException {
+
+        AutoCommitState autoCommitState = configureAutoCommitForStreaming(connection, config);
         try (PreparedStatement statement = connection.prepareStatement(
                 sqlQuery,
                 ResultSet.TYPE_FORWARD_ONLY,
@@ -472,6 +615,7 @@ public class DynamicJdbcExporter {
             if (config.getFetchSize() > 0) {
                 statement.setFetchSize(config.getFetchSize());
             }
+            statement.setFetchDirection(ResultSet.FETCH_FORWARD);
 
             try (ResultSet resultSet = statement.executeQuery()) {
                 // Create dynamic WriteModelFactory based on ResultSet metadata
@@ -500,12 +644,14 @@ public class DynamicJdbcExporter {
 
                     try (CarpetWriter<Map> writer = builder.build()) {
                         // Process in batches and return count
-                        return exportInBatches(resultSet, writer, config);
+                        return exportInBatches(resultSet, writer, config, tableName);
                     }
                 } finally {
                     encryptingStream.close();
                 }
             }
+        } finally {
+            restoreAutoCommit(connection, autoCommitState);
         }
     }
 
@@ -566,12 +712,15 @@ public class DynamicJdbcExporter {
                 System.out.println("Exporting " + tableName + "...");
                 System.out.flush();
 
+                prepareOutputFile(outputFile, config);
+
                 long rowCount = exportWithSharedKmsEncryption(
                     connection,
                     query,
                     outputFile,
                     config,
-                    sharedContext
+                    sharedContext,
+                    tableName
                 );
 
                 results.put(tableName, rowCount);
@@ -599,9 +748,22 @@ public class DynamicJdbcExporter {
             DynamicExportConfig config) throws SQLException, IOException {
 
         if (config.isUseMetadataCaching()) {
-            return exportInBatchesWithCaching(resultSet, writer, config);
+            return exportInBatchesWithCaching(resultSet, writer, config, null);
         } else {
-            return exportInBatchesWithoutCaching(resultSet, writer, config);
+            return exportInBatchesWithoutCaching(resultSet, writer, config, null);
+        }
+    }
+
+    private static long exportInBatches(
+            ResultSet resultSet,
+            CarpetWriter<Map> writer,
+            DynamicExportConfig config,
+            String tableName) throws SQLException, IOException {
+
+        if (config.isUseMetadataCaching()) {
+            return exportInBatchesWithCaching(resultSet, writer, config, tableName);
+        } else {
+            return exportInBatchesWithoutCaching(resultSet, writer, config, tableName);
         }
     }
 
@@ -611,7 +773,8 @@ public class DynamicJdbcExporter {
     private static long exportInBatchesWithCaching(
             ResultSet resultSet,
             CarpetWriter<Map> writer,
-            DynamicExportConfig config) throws SQLException, IOException {
+            DynamicExportConfig config,
+            String tableName) throws SQLException, IOException {
 
         List<Map> batch = new ArrayList<>(config.getBatchSize());
         long totalRows = 0;
@@ -652,8 +815,7 @@ public class DynamicJdbcExporter {
 
                 // Reduce logging frequency for better performance
                 if (totalRows % 100000 == 0) {
-                    System.out.println("Processed " + totalRows + " rows");
-                    System.out.flush();
+                    printProgressLine("Processed " + totalRows + " rows", tableName);
                 }
             }
         }
@@ -664,8 +826,7 @@ public class DynamicJdbcExporter {
             totalRows += batch.size();
         }
 
-        System.out.println("Export completed. Total rows: " + totalRows);
-        System.out.flush();
+        printProgressLine("Export completed. Total rows: " + totalRows, tableName);
         return totalRows;
     }
 
@@ -676,7 +837,8 @@ public class DynamicJdbcExporter {
     private static long exportInBatchesWithoutCaching(
             ResultSet resultSet,
             CarpetWriter<Map> writer,
-            DynamicExportConfig config) throws SQLException, IOException {
+            DynamicExportConfig config,
+            String tableName) throws SQLException, IOException {
 
         List<Map> batch = new ArrayList<>(config.getBatchSize());
         long totalRows = 0;
@@ -710,8 +872,7 @@ public class DynamicJdbcExporter {
 
                 // Reduce logging frequency for better performance
                 if (totalRows % 100000 == 0) {
-                    System.out.println("Processed " + totalRows + " rows");
-                    System.out.flush();
+                    printProgressLine("Processed " + totalRows + " rows", tableName);
                 }
             }
         }
@@ -722,9 +883,17 @@ public class DynamicJdbcExporter {
             totalRows += batch.size();
         }
 
-        System.out.println("Export completed. Total rows: " + totalRows);
-        System.out.flush();
+        printProgressLine("Export completed. Total rows: " + totalRows, tableName);
         return totalRows;
+    }
+
+    private static void printProgressLine(String message, String tableName) {
+        if (tableName == null || tableName.isBlank()) {
+            System.out.println(message);
+        } else {
+            System.out.println(message + " (" + tableName + ")");
+        }
+        System.out.flush();
     }
 
     /**

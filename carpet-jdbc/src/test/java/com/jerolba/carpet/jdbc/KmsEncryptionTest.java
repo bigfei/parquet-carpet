@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -67,12 +68,13 @@ class KmsEncryptionTest {
     private String awsRegion;
     private String awsProfile;
     private Path outputDir;
+    @TempDir
+    Path tempDir;
 
     @BeforeEach
     void setUp() throws SQLException, IOException {
         // Create output directory for encrypted files
-        // Tests run from carpet-jdbc directory, so "encrypted" is relative to carpet-jdbc/
-        outputDir = Path.of("encrypted").toAbsolutePath();
+        outputDir = tempDir.resolve("encrypted");
         Files.createDirectories(outputDir);
 
         // Load KMS configuration from properties file

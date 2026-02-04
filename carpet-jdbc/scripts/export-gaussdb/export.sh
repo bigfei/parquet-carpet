@@ -39,7 +39,7 @@ JAR_SEARCH_PATHS=(
 )
 
 # Java options (can be overridden via JAVA_OPTS environment variable)
-DEFAULT_JAVA_OPTS="-Xms512m -Xmx4g"
+DEFAULT_JAVA_OPTS="-Xms2048m -Xmx16g"
 
 # -----------------------------------------------------------------------------
 # Functions
@@ -71,6 +71,8 @@ Optional Arguments:
   -t, --tables <file>       Path to table list file (one table per line)
                             If not provided, all user tables will be exported
   -j, --jar <file>          Path to carpet-jdbc JAR file (auto-detected if not specified)
+  --kms                     Force-enable KMS encryption (requires aws.kms.keyId)
+  --no-kms                  Disable KMS encryption even if aws.kms.* is set
   -h, --help                Show this help message
 
 Environment Variables:
@@ -163,6 +165,7 @@ main() {
     local properties_file=""
     local tables_file=""
     local jar_file=""
+    local kms_flag=""
     
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -178,6 +181,14 @@ main() {
             -j|--jar)
                 jar_file="$2"
                 shift 2
+                ;;
+            --kms)
+                kms_flag="--kms"
+                shift
+                ;;
+            --no-kms)
+                kms_flag="--no-kms"
+                shift
                 ;;
             -h|--help)
                 show_help
@@ -255,6 +266,9 @@ main() {
     local cmd_args="--properties \"$properties_file\""
     if [[ -n "$tables_file" ]]; then
         cmd_args="$cmd_args --tables \"$tables_file\""
+    fi
+    if [[ -n "$kms_flag" ]]; then
+        cmd_args="$cmd_args $kms_flag"
     fi
     
     # shellcheck disable=SC2086

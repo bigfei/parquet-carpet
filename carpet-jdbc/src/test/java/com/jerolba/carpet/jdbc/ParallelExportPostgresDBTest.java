@@ -174,6 +174,49 @@ class ParallelExportPostgresDBTest {
     }
 
     @Test
+    void testOverwriteExistingFalseBlocksWhenMetadataExists(@TempDir Path tempDir) throws SQLException, IOException {
+        List<String> tableNames = Arrays.asList("employees");
+        String queryPattern = "SELECT * FROM %s";
+        File outputBaseDir = tempDir.toFile();
+
+        String dateFolder = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        File dateFolderPath = new File(outputBaseDir, dateFolder);
+        assertTrue(dateFolderPath.mkdirs() || dateFolderPath.exists(), "Date folder should exist");
+
+        File metadataFile = new File(dateFolderPath, "employees.parquet.metadata");
+        Files.write(metadataFile.toPath(), "stub".getBytes(StandardCharsets.UTF_8));
+
+        DynamicExportConfig config = new DynamicExportConfig()
+            .withBatchSize(1000)
+            .withFetchSize(500)
+            .withOverwriteExistingFiles(false);
+
+        ConnectionSupplier connectionSupplier = new ConnectionSupplier(
+            postgres.getJdbcUrl(),
+            postgres.getUsername(),
+            postgres.getPassword()
+        );
+
+        IOException exception = assertThrows(IOException.class, () -> {
+            DynamicJdbcExporter.exportParallelWithConfig(
+                tableNames,
+                queryPattern,
+                outputBaseDir,
+                config,
+                connectionSupplier
+            );
+        });
+
+        assertTrue(exception.getCause() != null, "Failure should include root cause");
+        assertTrue(exception.getCause().getMessage() != null && !exception.getCause().getMessage().isBlank(),
+            "Failure should include a root cause message");
+
+        File employeesFile = new File(dateFolderPath, "employees.parquet");
+        assertFalse(employeesFile.exists(), "Output file should not be created when metadata exists");
+        assertTrue(metadataFile.exists(), "Metadata file should remain when overwrite is disabled");
+    }
+
+    @Test
     void testParallelExportFailFastBehavior(@TempDir Path tempDir) throws SQLException {
         List<String> tableNames = Arrays.asList("employees", "nonexistent_table", "departments");
         String queryPattern = "SELECT * FROM %s";
@@ -228,6 +271,7 @@ class ParallelExportPostgresDBTest {
         props.setProperty("export.compression", "SNAPPY");
         props.setProperty("export.namingStrategy", "FIELD_NAME");
         props.setProperty("export.queryPattern", "SELECT * FROM %s");
+        props.setProperty("export.promptBeforeExport", "false");
 
         try (var writer = Files.newBufferedWriter(propertiesFile.toPath(), StandardCharsets.UTF_8)) {
             props.store(writer, "Test export configuration");
@@ -278,6 +322,7 @@ class ParallelExportPostgresDBTest {
         props.setProperty("export.compression", "SNAPPY");
         props.setProperty("export.namingStrategy", "FIELD_NAME");
         props.setProperty("export.queryPattern", "SELECT * FROM %s");
+        props.setProperty("export.promptBeforeExport", "false");
 
         try (var writer = Files.newBufferedWriter(propertiesFile.toPath(), StandardCharsets.UTF_8)) {
             props.store(writer, "Test export configuration");

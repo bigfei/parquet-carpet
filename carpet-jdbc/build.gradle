@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'java-library'
+    id 'jacoco'
 }
 
 java {
@@ -60,6 +61,7 @@ dependencies {
     testImplementation "org.testcontainers:postgresql:1.19.7"
     testImplementation "org.testcontainers:mysql:1.19.7"
     testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
+    testImplementation "org.mockito:mockito-core:5.10.0"
     testRuntimeOnly "org.junit.platform:junit-platform-launcher:${junitPlatformLauncherVersion}"
 }
 
@@ -101,6 +103,25 @@ test {
             println "🎯 Result: ${result.resultType}"
             println "="*60
         }
+    }
+}
+
+jacoco {
+    toolVersion = "0.8.11"
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+    }
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: [
+                'com/jerolba/carpet/jdbc/example/**'
+            ])
+        }))
     }
 }
 
@@ -161,4 +182,22 @@ task fatJarWithDrivers(type: Jar) {
 // Make build task create both fat JARs
 build {
     dependsOn fatJar, fatJarWithDrivers
+}
+
+// Bundle export-gaussdb assets and fat JAR for server deployment
+task bundleExportGaussdb(type: Zip) {
+    group = "distribution"
+    description = "Bundle export-gaussdb scripts, config, certs, and fat JAR for deployment."
+    dependsOn fatJarWithDrivers
+
+    archiveBaseName.set("export-gaussdb-bundle")
+    archiveVersion.set(project.version.toString())
+    destinationDirectory.set(file("$buildDir/distributions"))
+
+    from("$projectDir/scripts/export-gaussdb") {
+        exclude "exports/**"
+    }
+    from("$buildDir/libs") {
+        include "carpet-jdbc-${project.version}-full.jar"
+    }
 }

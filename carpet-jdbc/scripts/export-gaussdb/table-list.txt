@@ -1,3 +1,4 @@
+kapp_effect_val_defn
 kapp_txn_sys_dt
 kbrp_org
 kcfb_corp_aml_info
@@ -15,18 +16,22 @@ kcfb_rtl_docs_info
 kcfb_rtl_elec_cntct_info
 kcfb_rtl_stage_info
 kcfp_address_info
+kcfp_docs_info_vrfcn
 kcfp_group_code
 kcfp_industry_type
+kcfp_nat_code
 kcfp_ocupn
+kcfp_position_type
 kcfp_school_code
+kcfp_wealth_src
 kcgb_chrg
+kdpa_acct
 kdpa_acct_int_caln
 kdpa_acct_int_rate
 kdpa_acct_matu
-kdpa_acct
 kdpa_joint_cust_rltnp
-kdpa_sub_acct_splmty
 kdpa_sub_acct
+kdpa_sub_acct_splmty
 kdpb_acct_cheq
 kdpb_acct_hist_bal
 kdpb_dormant_trfr
@@ -62,3 +67,4 @@ klnl_loan_txn
 klnl_prvn_acrl
 kstb_bill_trfr_out
 kstp_slmt_bank_code
+ktal_intrl_acct
