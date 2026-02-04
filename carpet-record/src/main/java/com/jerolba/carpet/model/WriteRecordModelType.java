@@ -26,12 +26,16 @@ import static java.util.Objects.requireNonNull;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.ToDoubleFunction;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
+
+import com.jerolba.carpet.RecordTypeConversionException;
 
 public final class WriteRecordModelType<T> implements FieldType {
 
@@ -39,6 +43,8 @@ public final class WriteRecordModelType<T> implements FieldType {
     private final List<WriteField<T>> fields = new ArrayList<>();
     private final Map<String, WriteField<T>> indexedFields = new HashMap<>();
     private boolean isNotNull = false;
+    private Integer fieldId = null;
+    private final Set<Integer> usedFieldIds = new HashSet<>();
 
     WriteRecordModelType(Class<T> recordClass) {
         this.recordClass = recordClass;
@@ -58,9 +64,19 @@ public final class WriteRecordModelType<T> implements FieldType {
         return this;
     }
 
+    public WriteRecordModelType<T> fieldId(Integer fieldId) {
+        this.fieldId = fieldId;
+        return this;
+    }
+
     @Override
     public boolean isNotNull() {
         return isNotNull;
+    }
+
+    @Override
+    public Integer fieldId() {
+        return fieldId;
     }
 
     public List<WriteField<T>> getFields() {
@@ -74,6 +90,7 @@ public final class WriteRecordModelType<T> implements FieldType {
         if (indexedFields.containsKey(parquetFieldName)) {
             throw new IllegalArgumentException(parquetFieldName + " already defined");
         }
+        addUsedFieldId(type);
         var field = new FunctionFieldInfo<>(parquetFieldName, type, accessor);
         fields.add(field);
         indexedFields.put(parquetFieldName, field);
@@ -81,42 +98,60 @@ public final class WriteRecordModelType<T> implements FieldType {
     }
 
     public WriteRecordModelType<T> withField(String parquetFieldName, ToBooleanFunction<T> accessor) {
-        return primitiveField(parquetFieldName, BOOLEAN.notNull(), accessor);
+        return withPrimitiveField(parquetFieldName, BOOLEAN.notNull(), accessor);
     }
 
     public WriteRecordModelType<T> withField(String parquetFieldName, ToByteFunction<T> accessor) {
-        return primitiveField(parquetFieldName, BYTE.notNull(), accessor);
+        return withPrimitiveField(parquetFieldName, BYTE.notNull(), accessor);
     }
 
     public WriteRecordModelType<T> withField(String parquetFieldName, ToShortFunction<T> accessor) {
-        return primitiveField(parquetFieldName, SHORT.notNull(), accessor);
+        return withPrimitiveField(parquetFieldName, SHORT.notNull(), accessor);
     }
 
     public WriteRecordModelType<T> withField(String parquetFieldName, ToIntFunction<T> accessor) {
-        return primitiveField(parquetFieldName, INTEGER.notNull(), accessor);
+        return withPrimitiveField(parquetFieldName, INTEGER.notNull(), accessor);
     }
 
     public WriteRecordModelType<T> withField(String parquetFieldName, ToLongFunction<T> accessor) {
-        return primitiveField(parquetFieldName, LONG.notNull(), accessor);
+        return withPrimitiveField(parquetFieldName, LONG.notNull(), accessor);
     }
 
     public WriteRecordModelType<T> withField(String parquetFieldName, ToFloatFunction<T> accessor) {
-        return primitiveField(parquetFieldName, FLOAT.notNull(), accessor);
+        return withPrimitiveField(parquetFieldName, FLOAT.notNull(), accessor);
     }
 
     public WriteRecordModelType<T> withField(String parquetFieldName, ToDoubleFunction<T> accessor) {
-        return primitiveField(parquetFieldName, DOUBLE.notNull(), accessor);
+        return withPrimitiveField(parquetFieldName, DOUBLE.notNull(), accessor);
     }
 
-    private WriteRecordModelType<T> primitiveField(String parquetFieldName, FieldType type, Object accessor) {
+    /**
+     * Adds a primitive field to the record model. The method is defined to for
+     * internal and utilities use. For manual programmatic use call to withField
+     * methods.
+     *
+     * @param parquetFieldName the name of the field in the Parquet schema
+     * @param type             the field type of the primitive defined
+     * @param accessor         the accessor function to get the primitive value from
+     *                         the record
+     * @return the updated WriteRecordModelType instance
+     * @throws IllegalArgumentException if the field name is already defined, if the
+     *                                  type is not a primitive type, or if the
+     *                                  accessor is not a primitive function.
+     */
+    public WriteRecordModelType<T> withPrimitiveField(String parquetFieldName, FieldType type, Object accessor) {
         requireNonNull(parquetFieldName);
+        requireNonNull(type);
         requireNonNull(accessor);
+        requirePrimitiveFieldType(type);
+        requirePrimitiveAccessor(accessor);
         if (indexedFields.containsKey(parquetFieldName)) {
             throw new IllegalArgumentException(parquetFieldName + " already defined");
         }
         if (!type.isNotNull()) {
             throw new IllegalArgumentException(parquetFieldName + " is not defined as not null");
         }
+        addUsedFieldId(type);
         WriteField<T> field = new PrimitiveJavaFieldInfo<>(parquetFieldName, type, accessor);
         fields.add(field);
         indexedFields.put(parquetFieldName, field);
@@ -131,4 +166,40 @@ public final class WriteRecordModelType<T> implements FieldType {
             implements WriteField<T> {
     }
 
+    private void addUsedFieldId(FieldType fieldType) {
+        Integer id = fieldType.fieldId();
+        if (id == null) {
+            return;
+        }
+        if (usedFieldIds.contains(id)) {
+            throw new RecordTypeConversionException(
+                    "Duplicate field ID " + id + " found in record " + recordClass.getSimpleName() +
+                            ". Field IDs must be unique within the same record scope.");
+        }
+        usedFieldIds.add(id);
+    }
+
+    private void requirePrimitiveFieldType(FieldType type) {
+        if (!(type instanceof BooleanType ||
+                type instanceof ByteType ||
+                type instanceof ShortType ||
+                type instanceof IntegerType ||
+                type instanceof LongType ||
+                type instanceof FloatType ||
+                type instanceof DoubleType)) {
+            throw new IllegalArgumentException("Type must be a primitive type");
+        }
+    }
+
+    private void requirePrimitiveAccessor(Object accessor) {
+        if (!(accessor instanceof ToBooleanFunction<?> ||
+                accessor instanceof ToByteFunction<?> ||
+                accessor instanceof ToShortFunction<?> ||
+                accessor instanceof ToIntFunction<?> ||
+                accessor instanceof ToLongFunction<?> ||
+                accessor instanceof ToFloatFunction<?> ||
+                accessor instanceof ToDoubleFunction<?>)) {
+            throw new IllegalArgumentException("Accessor must be a primitive function");
+        }
+    }
 }

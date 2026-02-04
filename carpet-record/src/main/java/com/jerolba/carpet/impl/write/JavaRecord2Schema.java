@@ -99,28 +99,29 @@ class JavaRecord2Schema {
 
     private List<Type> createGroupFields(Class<?> recordClass, Set<Class<?>> visited) {
         List<Type> fields = new ArrayList<>();
+        FieldIdMapper fieldIdMapper = new FieldIdMapper();
         for (var attr : recordClass.getRecordComponents()) {
-            fields.add(buildRecordField(attr, visited));
+            fields.add(buildRecordField(attr, visited, fieldIdMapper));
         }
         return fields;
     }
 
-    private Type buildRecordField(RecordComponent attr, Set<Class<?>> visited) {
+    private Type buildRecordField(RecordComponent attr, Set<Class<?>> visited, FieldIdMapper fieldIdMapper) {
         String fieldName = fieldToColumnMapper.getColumnName(attr);
         Repetition repetition = isNotNull(attr) ? REQUIRED : OPTIONAL;
         JavaType javaType = new JavaType(attr);
+        Integer fieldId = fieldIdMapper.getFieldId(attr);
 
         Type parquetType = buildType(fieldName, javaType, repetition, visited);
         if (parquetType != null) {
-            return parquetType;
+            return applyFieldId(parquetType, fieldId);
         } else if (javaType.isCollection()) {
-            return createCollectionType(fieldName, getParameterizedCollection(attr), repetition, visited);
+            return applyFieldId(createCollectionType(fieldName, getParameterizedCollection(attr), repetition, visited),
+                    fieldId);
         } else if (javaType.isMap()) {
-            return createMapType(fieldName, getParameterizedMap(attr), repetition, visited);
+            return applyFieldId(createMapType(fieldName, getParameterizedMap(attr), repetition, visited), fieldId);
         }
-        if (attr.getGenericType() instanceof TypeVariable<?>) {
-            throw new RecordTypeConversionException(attr.getGenericType().toString() + " generic types not supported");
-        }
+        reviewNotSupportedTypes(attr);
         throw new RecordTypeConversionException(
                 "Field '" + attr.getName() + "' of type " + attr.getType() + " not supported");
     }
@@ -325,4 +326,26 @@ class JavaRecord2Schema {
         return isNotNullAnnotated(javaType.getDeclaredAnnotations()) ? REQUIRED : OPTIONAL;
     }
 
+    /**
+     * Applies a field ID to an already built Type.
+     */
+    private static Type applyFieldId(Type type, Integer fieldId) {
+        if (fieldId != null) {
+            return type.withId(fieldId);
+        }
+        return type;
+    }
+
+    private static void reviewNotSupportedTypes(RecordComponent attr) {
+        if (attr.getGenericType() instanceof TypeVariable<?>) {
+            throw new RecordTypeConversionException(attr.getGenericType().toString() + " generic types not supported");
+        }
+        // Check if java type is concretely java.lang.Record, isRecord doesn't check
+        // that is the case
+        if (attr.getType() == java.lang.Record.class) {
+            throw new RecordTypeConversionException(
+                    "Field '" + attr.getName()
+                            + "' not supported because it is declared as java.lang.Record and must be a concrete Record type");
+        }
+    }
 }
