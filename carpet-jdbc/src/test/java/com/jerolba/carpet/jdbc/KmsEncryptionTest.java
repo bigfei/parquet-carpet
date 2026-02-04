@@ -46,15 +46,19 @@ import com.jerolba.carpet.CarpetReader;
  *
  * These tests require:
  * 1. AWS credentials configured (environment variables, credentials file, or IAM role)
- * 2. KMS key ID specified in test.properties file
+ * 2. KMS key ID specified in AWS_KMS_ID (preferred) or test.properties
  * 3. KMS key with GenerateDataKey and Decrypt permissions
  *
  * Setup:
- * 1. Create test.properties in src/test/resources/:
+ * 1. Configure env vars (recommended for CI):
+ *    AWS_KMS_ID=arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012
+ *    AWS_KMS_REGION=us-east-1
+ *
+ * 2. Or create test.properties in src/test/resources/:
  *    aws.kms.keyId=arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012
  *    aws.kms.region=us-east-1
  *
- * 2. Configure AWS credentials (one of):
+ * 3. Configure AWS credentials (one of):
  *    - Environment: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
  *    - File: ~/.aws/credentials
  *    - IAM Role (if running on EC2/ECS)
@@ -77,15 +81,32 @@ class KmsEncryptionTest {
         outputDir = tempDir.resolve("encrypted");
         Files.createDirectories(outputDir);
 
-        // Load KMS configuration from properties file
+        // Prefer environment variables, then local overrides, then test.properties
         Properties props = loadTestProperties();
-        kmsKeyId = props.getProperty("aws.kms.keyId");
-        awsRegion = props.getProperty("aws.kms.region", "us-east-1");
-        awsProfile = props.getProperty("aws.profile");
+        kmsKeyId = firstNonBlank(
+            getEnv("AWS_KMS_ID"),
+            getEnv("AWS_KMS_KEY_ID"),
+            props.getProperty("aws.kms.keyId")
+        );
+        if (PLACEHOLDER_KMS_KEY_ID.equals(kmsKeyId)) {
+            kmsKeyId = null;
+        }
+
+        awsRegion = firstNonBlank(
+            getEnv("AWS_KMS_REGION"),
+            getEnv("AWS_REGION"),
+            props.getProperty("aws.kms.region"),
+            "us-east-1"
+        );
+
+        awsProfile = getEnv("AWS_PROFILE");
+        if (isBlank(awsProfile) && !hasExplicitEnvCredentials()) {
+            awsProfile = props.getProperty("aws.profile");
+        }
 
         // Skip tests if KMS key not configured
         assumeTrue(kmsKeyId != null && !kmsKeyId.isEmpty(),
-            "KMS key ID not configured. Set aws.kms.keyId in src/test/resources/test.properties");
+            "KMS key ID not configured. Set AWS_KMS_ID or aws.kms.keyId in test.properties");
 
         // Create DuckDB in-memory database for test data
         connection = DriverManager.getConnection("jdbc:duckdb:");
@@ -350,6 +371,37 @@ class KmsEncryptionTest {
 
         return props;
     }
+
+    private static final String PLACEHOLDER_KMS_KEY_ID =
+        "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012";
+
+    private static String getEnv(String name) {
+        String value = System.getenv(name);
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (!isBlank(value)) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    private static boolean hasExplicitEnvCredentials() {
+        return !isBlank(getEnv("AWS_ACCESS_KEY_ID"))
+            && !isBlank(getEnv("AWS_SECRET_ACCESS_KEY"));
+    }
+
 
     /**
      * Create test tables with sample data.

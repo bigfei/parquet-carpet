@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -273,6 +274,7 @@ class DynamicJdbcExporterPostgreSQLTest {
     }
 
     @Test
+    @Disabled("Performance-intensive benchmark; not run in unit test suite")
     void testIndividualOptimizationImpact(@TempDir Path tempDir) throws SQLException, IOException {
         System.out.println("\n=== Individual Optimization Impact Analysis (1,000,000 rows) ===\n");
 
