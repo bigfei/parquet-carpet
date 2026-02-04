@@ -20,6 +20,7 @@ kcfp_docs_info_vrfcn
 kcfp_group_code
 kcfp_industry_type
 kcfp_nat_code
+kcfp_nature_work
 kcfp_ocupn
 kcfp_position_type
 kcfp_school_code
