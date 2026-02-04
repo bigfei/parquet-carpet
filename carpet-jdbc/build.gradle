@@ -134,6 +134,8 @@ jar {
 task fatJar(type: Jar) {
     archiveClassifier.set('all')
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    dependsOn project(':carpet-record').tasks.named('jar')
     
     manifest {
         attributes(
@@ -156,6 +158,8 @@ task fatJar(type: Jar) {
 task fatJarWithDrivers(type: Jar) {
     archiveClassifier.set('full')
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    dependsOn project(':carpet-record').tasks.named('jar')
     
     manifest {
         attributes(
