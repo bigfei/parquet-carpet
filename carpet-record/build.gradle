@@ -100,8 +100,9 @@ dependencies {
     testImplementation "org.apache.parquet:parquet-avro:${parquetVersion}"
     testImplementation "org.apache.parquet:parquet-variant:${parquetVersion}"
     testImplementation 'org.slf4j:slf4j-simple:1.7.36'
-    testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
-    testRuntimeOnly "org.junit.platform:junit-platform-launcher:${junitPlatformLauncherVersion}"
+    testImplementation platform("org.junit:junit-bom:${junitVersion}")
+    testImplementation "org.junit.jupiter:junit-jupiter"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
 }
 
 configurations.implementation {
@@ -212,4 +213,3 @@ mavenPublishing {
     }
   }
 }
-
